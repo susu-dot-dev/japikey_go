@@ -1,12 +1,11 @@
-# japikey-go
-
-A Go library for API key management with a focus on security and developer experience.
+# Quickstart Guide
 
 ## Installation
 
 To use japikey-go in your project, simply add it as a Go module:
 
 ```bash
+go mod init your-project
 go get github.com/susu-dot-dev/japikey-go
 ```
 
@@ -34,7 +33,7 @@ make build
 make ci
 ```
 
-## Quick Start
+## Basic Usage
 
 Here's a minimal example to get started with japikey-go:
 
@@ -52,10 +51,11 @@ func main() {
 }
 ```
 
-## Contributing
+## Requirements
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to contribute to this project.
+- Go 1.21 or later
+- Linux or Mac operating system
 
-## License
+## Next Steps
 
-This project is licensed under the terms specified in the LICENSE file.
+Check out the hello module in the `hello/` directory for a complete example of basic functionality.
