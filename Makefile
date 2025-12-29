@@ -29,7 +29,7 @@ all: test
 ## Build the project
 .PHONY: build
 build:
-	$(GOBUILD) -o $(BUILD_DIR)/$(BINARY_NAME) -v .
+	$(GOBUILD) -v ./...
 
 ## Run tests
 .PHONY: test
