@@ -31,7 +31,15 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+**Library-First Architecture**: Verify that this feature can be implemented as a standalone library with clear interfaces and no organizational-only components.
+
+**Developer Ease of Use**: Confirm that implementation will include comprehensive documentation, quickstart guides, and clear API examples for every behavior.
+
+**Security-First Testing**: Ensure that security-focused tests are planned for all core features, covering both security posture and functional correctness.
+
+**Specification-Driven Development**: Verify that tests will be written to validate the specification before implementation begins.
+
+**Security & Observability**: Confirm that security-related events will be logged with appropriate detail for audit trails.
 
 ## Project Structure
 
