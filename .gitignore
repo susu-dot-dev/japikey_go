@@ -42,3 +42,6 @@ cover.out
 # Tools
 debug/
 debug-bin/
+
+# Outputs
+/build
