@@ -62,11 +62,11 @@ description: "Task list template for feature implementation"
 
 Examples of foundational tasks (adjust based on your project):
 
-- [ ] T004 Setup database schema and migrations framework
-- [ ] T005 [P] Implement authentication/authorization framework
+- [ ] T004 Setup library structure with clear interfaces per Library-First Architecture principle
+- [ ] T005 [P] Implement security-focused authentication/authorization framework
 - [ ] T006 [P] Setup API routing and middleware structure
 - [ ] T007 Create base models/entities that all stories depend on
-- [ ] T008 Configure error handling and logging infrastructure
+- [ ] T008 Configure error handling and security-focused logging infrastructure for audit trails
 - [ ] T009 Setup environment configuration management
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
@@ -150,12 +150,13 @@ Examples of foundational tasks (adjust based on your project):
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] TXXX [P] Documentation updates in docs/
-- [ ] TXXX Code cleanup and refactoring
+- [ ] TXXX [P] Documentation updates in docs/ ensuring Developer Ease of Use with comprehensive examples
+- [ ] TXXX Code cleanup and refactoring to maintain library-first architecture
 - [ ] TXXX Performance optimization across all stories
-- [ ] TXXX [P] Additional unit tests (if requested) in tests/unit/
-- [ ] TXXX Security hardening
-- [ ] TXXX Run quickstart.md validation
+- [ ] TXXX [P] Additional security-focused unit tests (if requested) in tests/unit/
+- [ ] TXXX Security hardening per Security-First Testing principle
+- [ ] TXXX Run quickstart.md validation to ensure Developer Ease of Use
+- [ ] TXXX Verify all features meet Library-First Architecture requirements
 
 ---
 

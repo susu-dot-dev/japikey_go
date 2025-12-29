@@ -20,17 +20,17 @@
   ============================================================================
 -->
 
-## [Category 1]
+## Constitution Compliance
 
-- [ ] CHK001 First checklist item with clear action
-- [ ] CHK002 Second checklist item
-- [ ] CHK003 Third checklist item
+- [ ] CHK001 Verify feature is implemented as a standalone library per Library-First Architecture
+- [ ] CHK002 Confirm comprehensive documentation with quickstart guides and API examples per Developer Ease of Use principle
+- [ ] CHK003 Ensure security-focused tests cover both security posture and functional correctness per Security-First Testing principle
 
-## [Category 2]
+## Security & Documentation
 
-- [ ] CHK004 Another category item
-- [ ] CHK005 Item with specific criteria
-- [ ] CHK006 Final item in this category
+- [ ] CHK004 Verify specification was validated with tests before implementation per Specification-Driven Development principle
+- [ ] CHK005 Confirm security-related events are logged with appropriate detail for audit trails per Security & Observability principle
+- [ ] CHK006 Validate that all cryptographic operations use industry-standard algorithms per Additional Security Requirements
 
 ## Notes
 
