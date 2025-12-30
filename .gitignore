@@ -1,23 +1,23 @@
-# Go
+# Binaries
 *.exe
 *.test
 *.out
-vendor/
-!vendor/mod/
-coverage.out
-*.prof
+*.bin
+build/
 
-# Build artifacts
-*.a
-*.o
+# Go build artifacts
 *.so
+*.dll
+*.dylib
 
-# Editor
+# Go workspace
+vendor/
+
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
 
 # OS
 .DS_Store
@@ -25,23 +25,12 @@ Thumbs.db
 
 # Logs
 *.log
-!git.log
+*.log.*
 
 # Environment
-.env*
-*.env
+.env
 .env.local
-.env.production
-.env.development
+.env.*.local
 
-# Testing
-coverage/
-cover.out
-*.coverprofile
-
-# Tools
-debug/
-debug-bin/
-
-# Outputs
-/build
+# Coverage
+coverage.out
