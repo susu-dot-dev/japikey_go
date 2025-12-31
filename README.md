@@ -31,7 +31,7 @@ func main() {
     }
 
     // Generate the JAPIKey
-    result, err := japikey.CreateJAPIKey(config)
+    result, err := japikey.NewJAPIKey(config)
     if err != nil {
         // Handle error appropriately
         if validationErr, ok := err.(*japikey.JAPIKeyValidationError); ok {
@@ -66,7 +66,7 @@ config := japikey.Config{
     },
 }
 
-result, err := japikey.CreateJAPIKey(config)
+result, err := japikey.NewJAPIKey(config)
 if err != nil {
     // Handle error...
     return
@@ -86,7 +86,7 @@ The library provides structured error types for different failure scenarios:
 Use type assertions to handle specific error cases:
 
 ```go
-_, err := japikey.CreateJAPIKey(config)
+_, err := japikey.NewJAPIKey(config)
 if err != nil {
     switch err := err.(type) {
     case *japikey.JAPIKeyValidationError:

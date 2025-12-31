@@ -23,14 +23,14 @@ type JAPIKey struct {
 	KeyID     string
 }
 
-func CreateJAPIKey(config Config) (JAPIKey, error) {
+func NewJAPIKey(config Config) (*JAPIKey, error) {
 	if err := validateConfig(config); err != nil {
-		return JAPIKey{}, err
+		return nil, err
 	}
 
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		return JAPIKey{}, &JAPIKeyGenerationError{
+		return nil, &JAPIKeyGenerationError{
 			Message: "failed to generate RSA key pair",
 			Code:    "KeyGenerationError",
 		}
@@ -64,13 +64,13 @@ func CreateJAPIKey(config Config) (JAPIKey, error) {
 
 	jwtString, err := token.SignedString(privateKey)
 	if err != nil {
-		return JAPIKey{}, &JAPIKeySigningError{
+		return nil, &JAPIKeySigningError{
 			Message: "failed to sign JWT",
 			Code:    "SigningError",
 		}
 	}
 
-	result := JAPIKey{
+	result := &JAPIKey{
 		JWT:       jwtString,
 		PublicKey: &privateKey.PublicKey,
 		KeyID:     keyID,

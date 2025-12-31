@@ -16,7 +16,7 @@ package main
 import (
     "fmt"
     "time"
-    "github.com/your-org/japikey"
+    "github.com/susu-dot-dev/japikey"
 )
 
 func main() {
@@ -29,7 +29,7 @@ func main() {
     }
 
     // Generate the JAPIKey
-    result, err := japikey.CreateJAPIKey(config)
+    result, err := japikey.NewJAPIKey(config)
     if err != nil {
         // Handle error appropriately
         if validationErr, ok := err.(*japikey.JAPIKeyValidationError); ok {
@@ -57,14 +57,14 @@ config := japikey.Config{
     Issuer:    "https://myapp.com",
     Audience:  "myapp-users",
     ExpiresAt: time.Now().Add(24 * time.Hour),
-    Claims: jwt.MapClaims{
+    Claims: map[string]interface{}{
         "role": "admin",
         "permissions": []string{"read", "write"},
         "custom_field": "custom_value",
     },
 }
 
-result, err := japikey.CreateJAPIKey(config)
+result, err := japikey.NewJAPIKey(config)
 if err != nil {
     // Handle error...
     return
@@ -84,7 +84,7 @@ The library provides structured error types for different failure scenarios:
 Use type assertions to handle specific error cases:
 
 ```go
-_, err := japikey.CreateJAPIKey(config)
+_, err := japikey.NewJAPIKey(config)
 if err != nil {
     switch err := err.(type) {
     case *japikey.JAPIKeyValidationError:

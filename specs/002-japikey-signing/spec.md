@@ -92,7 +92,7 @@ As a developer, I want the JAPIKey creation to fail with structured error types 
 - **FR-027**: System MUST implement the main function as a method on a service struct following Go idioms
 - **FR-032**: System MUST be thread-safe to support concurrent API key generation requests
 - **FR-028**: System MUST return success data types that are compatible with golang-jwt library types
-- **FR-029**: System MUST provide a CreateJAPIKey function that accepts a configuration struct with mandatory and optional parameters
+- **FR-029**: System MUST provide a NewJAPIKey function that accepts a configuration struct with mandatory and optional parameters
 - **FR-030**: System MUST return a result struct containing the JWT string, golang-jwt compatible claims, and JWK
 - **FR-033**: System MUST ensure that user-passed in claims cannot override the mandatory config claims (subject, issuer, audience, expiration) or the version identifier
 
@@ -135,13 +135,22 @@ The function MUST return a struct with the following golang-jwt compatible field
 The system MUST implement a Go-idiomatic API with:
 
 - A `Config` struct containing all required and optional parameters
-- A `JAPIKey` struct containing all return values
-- A `Service` struct with methods for key creation
+- A `JAPIKey` struct as the primary data type representing the API key
+- A `NewJAPIKey` constructor function following Go naming conventions (NewX pattern) that returns a pointer to JAPIKey
 - Error types that implement the standard `error` interface for compatibility
+
+### Package Re-exports
+
+The system MUST provide a top-level package at the module root that re-exports the API surface from the internal japikey package, allowing users to import directly from the module root:
+
+- Re-export the `Config` type
+- Re-export the `JAPIKey` struct as the primary data type
+- Re-export the `NewJAPIKey` constructor function
+- Re-export error types: `JAPIKeyValidationError`, `JAPIKeyGenerationError`, `JAPIKeySigningError`
 
 ### Key Entities
 
-- **JAPIKey**: A JWT token containing claims about the user and additional metadata, signed with a unique private key
+- **JAPIKey**: The primary data type representing a JWT token containing claims about the user and additional metadata, signed with a unique private key. This struct contains the JWT string, public key, and key identifier.
 - **JWK (JSON Web Key)**: A JSON structure representing a cryptographic key, containing the public key that can verify the JAPIKey signature
 - **Key Identifier (kid)**: A unique identifier for each key pair, embedded in the JWT header to enable key lookup during verification
 - **Claims**: Information embedded in the JWT including standard claims (subject, issuer, audience, expiration) and optional custom claims, using golang-jwt MapClaims type
@@ -159,7 +168,7 @@ The system MUST implement a Go-idiomatic API with:
 
 ### Measurable Outcomes
 
-- **SC-001**: Developers can generate a valid JAPIKey by calling a single function with mandatory parameters
+- **SC-001**: Developers can generate a valid JAPIKey pointer by calling the NewJAPIKey function with mandatory parameters
 - **SC-002**: 100% of generated JAPIKeys can be successfully validated using the corresponding public key
 - **SC-003**: The library provides structured error codes for 100% of failure scenarios
 - **SC-004**: Generated JAPIKeys follow JWT standards and can be parsed by standard JWT libraries

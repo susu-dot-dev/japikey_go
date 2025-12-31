@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/susu-dot-dev/japikey/japikey"
+	"github.com/susu-dot-dev/japikey"
 )
 
 func main() {
@@ -18,7 +18,7 @@ func main() {
 	}
 
 	// Generate the JAPIKey
-	result, err := japikey.CreateJAPIKey(config)
+	result, err := japikey.NewJAPIKey(config)
 	if err != nil {
 		// Handle error appropriately
 		if validationErr, ok := err.(*japikey.JAPIKeyValidationError); ok {
@@ -43,13 +43,13 @@ func main() {
 		Audience:  "myapp-users",
 		ExpiresAt: time.Now().Add(24 * time.Hour),
 		Claims: map[string]interface{}{
-			"role": "admin",
-			"permissions": []string{"read", "write"},
+			"role":         "admin",
+			"permissions":  []string{"read", "write"},
 			"custom_field": "custom_value",
 		},
 	}
 
-	result2, err := japikey.CreateJAPIKey(configWithClaims)
+	result2, err := japikey.NewJAPIKey(configWithClaims)
 	if err != nil {
 		log.Fatal(err)
 	}

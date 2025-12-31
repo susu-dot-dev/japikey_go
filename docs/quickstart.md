@@ -43,7 +43,7 @@ package main
 import (
     "fmt"
     "time"
-    "github.com/susu-dot-dev/japikey-go/japikey"
+    "github.com/susu-dot-dev/japikey-go"
 )
 
 func main() {
@@ -56,7 +56,7 @@ func main() {
     }
 
     // Generate the JAPIKey
-    result, err := japikey.CreateJAPIKey(config)
+    result, err := japikey.NewJAPIKey(config)
     if err != nil {
         // Handle error appropriately
         if validationErr, ok := err.(*japikey.JAPIKeyValidationError); ok {

@@ -8,7 +8,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-func TestCreateJAPIKey_WithValidInputs_ReturnsValidJWT(t *testing.T) {
+func TestNewJAPIKey_WithValidInputs_ReturnsValidJWT(t *testing.T) {
 	// Arrange
 	config := Config{
 		Subject:   "test-user",
@@ -18,11 +18,15 @@ func TestCreateJAPIKey_WithValidInputs_ReturnsValidJWT(t *testing.T) {
 	}
 
 	// Act
-	result, err := CreateJAPIKey(config)
+	result, err := NewJAPIKey(config)
 
 	// Assert
 	if err != nil {
 		t.Errorf("Expected no error, but got: %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("Expected result to not be nil")
 	}
 
 	if result.JWT == "" {
@@ -38,7 +42,7 @@ func TestCreateJAPIKey_WithValidInputs_ReturnsValidJWT(t *testing.T) {
 	}
 }
 
-func TestCreateJAPIKey_WithExpiredTime_ReturnsValidationError(t *testing.T) {
+func TestNewJAPIKey_WithExpiredTime_ReturnsValidationError(t *testing.T) {
 	// Arrange
 	config := Config{
 		Subject:   "test-user",
@@ -48,21 +52,21 @@ func TestCreateJAPIKey_WithExpiredTime_ReturnsValidationError(t *testing.T) {
 	}
 
 	// Act
-	result, err := CreateJAPIKey(config)
+	result, err := NewJAPIKey(config)
 
 	// Assert
 	if err == nil {
 		t.Error("Expected error for expired time, but got none")
 	}
 
-	if result.JWT != "" {
+	if result != nil && result.JWT != "" {
 		t.Error("Expected JWT to be empty for expired time, but it was populated")
 	}
 
 	// Check if it's the right type of error (will be implemented in task T014-T016)
 }
 
-func TestCreateJAPIKey_WithEmptySubject_ReturnsValidationError(t *testing.T) {
+func TestNewJAPIKey_WithEmptySubject_ReturnsValidationError(t *testing.T) {
 	// Arrange
 	config := Config{
 		Subject:   "", // Empty subject
@@ -72,21 +76,21 @@ func TestCreateJAPIKey_WithEmptySubject_ReturnsValidationError(t *testing.T) {
 	}
 
 	// Act
-	result, err := CreateJAPIKey(config)
+	result, err := NewJAPIKey(config)
 
 	// Assert
 	if err == nil {
 		t.Error("Expected error for empty subject, but got none")
 	}
 
-	if result.JWT != "" {
+	if result != nil && result.JWT != "" {
 		t.Error("Expected JWT to be empty for empty subject, but it was populated")
 	}
 
 	// Check if it's the right type of error (will be implemented in task T014-T016)
 }
 
-func TestCreateJAPIKey_ContainsVersionIdentifier(t *testing.T) {
+func TestNewJAPIKey_ContainsVersionIdentifier(t *testing.T) {
 	// Arrange
 	config := Config{
 		Subject:   "test-user",
@@ -96,11 +100,15 @@ func TestCreateJAPIKey_ContainsVersionIdentifier(t *testing.T) {
 	}
 
 	// Act
-	result, err := CreateJAPIKey(config)
+	result, err := NewJAPIKey(config)
 
 	// Assert
 	if err != nil {
 		t.Fatalf("Expected no error, but got: %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("Expected result to not be nil")
 	}
 
 	// Parse the JWT to check for version identifier
@@ -116,7 +124,7 @@ func TestCreateJAPIKey_ContainsVersionIdentifier(t *testing.T) {
 	}
 }
 
-func TestCreateJAPIKey_ContainsKeyIDInHeader(t *testing.T) {
+func TestNewJAPIKey_ContainsKeyIDInHeader(t *testing.T) {
 	// Arrange
 	config := Config{
 		Subject:   "test-user",
@@ -126,11 +134,15 @@ func TestCreateJAPIKey_ContainsKeyIDInHeader(t *testing.T) {
 	}
 
 	// Act
-	result, err := CreateJAPIKey(config)
+	result, err := NewJAPIKey(config)
 
 	// Assert
 	if err != nil {
 		t.Fatalf("Expected no error, but got: %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("Expected result to not be nil")
 	}
 
 	// Parse the JWT to check for key ID in header
@@ -148,7 +160,7 @@ func TestCreateJAPIKey_ContainsKeyIDInHeader(t *testing.T) {
 	}
 }
 
-func TestCreateJAPIKey_ReturnsValidJWK(t *testing.T) {
+func TestNewJAPIKey_ReturnsValidJWK(t *testing.T) {
 	// Arrange
 	config := Config{
 		Subject:   "test-user",
@@ -158,11 +170,15 @@ func TestCreateJAPIKey_ReturnsValidJWK(t *testing.T) {
 	}
 
 	// Act
-	result, err := CreateJAPIKey(config)
+	result, err := NewJAPIKey(config)
 
 	// Assert
 	if err != nil {
 		t.Fatalf("Expected no error, but got: %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("Expected result to not be nil")
 	}
 
 	// Check if the PublicKey in the result is a valid JWK
@@ -186,7 +202,7 @@ func TestCreateJAPIKey_ReturnsValidJWK(t *testing.T) {
 	}
 }
 
-func TestCreateJAPIKey_WithOptionalClaims_IncludesAllClaims(t *testing.T) {
+func TestNewJAPIKey_WithOptionalClaims_IncludesAllClaims(t *testing.T) {
 	// Arrange
 	expectedCustomClaimValue := "custom-value"
 	config := Config{
@@ -201,11 +217,15 @@ func TestCreateJAPIKey_WithOptionalClaims_IncludesAllClaims(t *testing.T) {
 	}
 
 	// Act
-	result, err := CreateJAPIKey(config)
+	result, err := NewJAPIKey(config)
 
 	// Assert
 	if err != nil {
 		t.Fatalf("Expected no error, but got: %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("Expected result to not be nil")
 	}
 
 	// Parse the JWT to check for optional claims
@@ -228,35 +248,35 @@ func TestCreateJAPIKey_WithOptionalClaims_IncludesAllClaims(t *testing.T) {
 	}
 }
 
-func TestCreateJAPIKey_WithCryptographicFailure_ReturnsGenerationError(t *testing.T) {
+func TestNewJAPIKey_WithCryptographicFailure_ReturnsGenerationError(t *testing.T) {
 	// Note: Testing cryptographic failures is difficult without mocking
 	// This test will be more of a verification that the error type is correct
 	// when such failures occur. For now, we'll just verify the error type exists.
-	
+
 	// We can't easily force a cryptographic failure in rsa.GenerateKey
 	// So we'll test that the error type exists and implements the error interface
 	err := &JAPIKeyGenerationError{
 		Message: "test error",
 		Code:    "KeyGenerationError",
 	}
-	
+
 	if err.Error() != "test error" {
 		t.Errorf("Expected error message 'test error', got '%s'", err.Error())
 	}
 }
 
-func TestCreateJAPIKey_WithSigningFailure_ReturnsSigningError(t *testing.T) {
+func TestNewJAPIKey_WithSigningFailure_ReturnsSigningError(t *testing.T) {
 	// Note: Testing signing failures is difficult without mocking
 	// This test will be more of a verification that the error type is correct
 	// when such failures occur. For now, we'll just verify the error type exists.
-	
+
 	// We can't easily force a signing failure in token.SignedString
 	// So we'll test that the error type exists and implements the error interface
 	err := &JAPIKeySigningError{
 		Message: "test signing error",
 		Code:    "SigningError",
 	}
-	
+
 	if err.Error() != "test signing error" {
 		t.Errorf("Expected error message 'test signing error', got '%s'", err.Error())
 	}
@@ -268,27 +288,27 @@ func TestTypeAssertionsForErrorHandling(t *testing.T) {
 		Message: "validation error",
 		Code:    "ValidationError",
 	}
-	
+
 	generationErr := &JAPIKeyGenerationError{
 		Message: "generation error",
 		Code:    "KeyGenerationError",
 	}
-	
+
 	signingErr := &JAPIKeySigningError{
 		Message: "signing error",
 		Code:    "SigningError",
 	}
-	
+
 	// Test type assertion for validation error
 	if _, ok := interface{}(validationErr).(*JAPIKeyValidationError); !ok {
 		t.Error("Type assertion for JAPIKeyValidationError failed")
 	}
-	
+
 	// Test type assertion for generation error
 	if _, ok := interface{}(generationErr).(*JAPIKeyGenerationError); !ok {
 		t.Error("Type assertion for JAPIKeyGenerationError failed")
 	}
-	
+
 	// Test type assertion for signing error
 	if _, ok := interface{}(signingErr).(*JAPIKeySigningError); !ok {
 		t.Error("Type assertion for JAPIKeySigningError failed")
@@ -305,11 +325,15 @@ func TestPrivateKeyNotAccessibleAfterCreation(t *testing.T) {
 	}
 
 	// Act
-	result, err := CreateJAPIKey(config)
+	result, err := NewJAPIKey(config)
 
 	// Assert
 	if err != nil {
 		t.Fatalf("Expected no error, but got: %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("Expected result to not be nil")
 	}
 
 	// Verify that the result only contains public information
@@ -333,7 +357,7 @@ func TestPrivateKeyNotAccessibleAfterCreation(t *testing.T) {
 func TestThreadSafety(t *testing.T) {
 	// Test that the function can be called concurrently without issues
 	numGoroutines := 10
-	results := make(chan JAPIKey, numGoroutines)
+	results := make(chan *JAPIKey, numGoroutines)
 	errors := make(chan error, numGoroutines)
 
 	// Launch multiple goroutines to create API keys concurrently
@@ -346,7 +370,7 @@ func TestThreadSafety(t *testing.T) {
 				ExpiresAt: time.Now().Add(1 * time.Hour),
 			}
 
-			result, err := CreateJAPIKey(config)
+			result, err := NewJAPIKey(config)
 			if err != nil {
 				errors <- err
 			} else {
@@ -356,7 +380,7 @@ func TestThreadSafety(t *testing.T) {
 	}
 
 	// Collect results
-	var validResults []JAPIKey
+	var validResults []*JAPIKey
 	for i := 0; i < numGoroutines; i++ {
 		select {
 		case result := <-results:
@@ -394,11 +418,15 @@ func TestPerformanceGenerationTime(t *testing.T) {
 	}
 
 	start := time.Now()
-	result, err := CreateJAPIKey(config)
+	result, err := NewJAPIKey(config)
 	duration := time.Since(start)
 
 	if err != nil {
 		t.Fatalf("Expected no error, but got: %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("Expected result to not be nil")
 	}
 
 	if duration > 100*time.Millisecond {
@@ -413,7 +441,7 @@ func TestPerformanceGenerationTime(t *testing.T) {
 func TestConcurrentAPIKeyGeneration(t *testing.T) {
 	// Test that multiple API keys can be generated concurrently
 	numKeys := 5
-	results := make(chan JAPIKey, numKeys)
+	results := make(chan *JAPIKey, numKeys)
 	errors := make(chan error, numKeys)
 
 	// Launch multiple goroutines to generate API keys concurrently
@@ -426,7 +454,7 @@ func TestConcurrentAPIKeyGeneration(t *testing.T) {
 				ExpiresAt: time.Now().Add(1 * time.Hour),
 			}
 
-			result, err := CreateJAPIKey(config)
+			result, err := NewJAPIKey(config)
 			if err != nil {
 				errors <- err
 			} else {
@@ -436,7 +464,7 @@ func TestConcurrentAPIKeyGeneration(t *testing.T) {
 	}
 
 	// Collect results
-	var validResults []JAPIKey
+	var validResults []*JAPIKey
 	for i := 0; i < numKeys; i++ {
 		select {
 		case result := <-results:
@@ -453,6 +481,10 @@ func TestConcurrentAPIKeyGeneration(t *testing.T) {
 
 	// Verify each result is valid
 	for _, result := range validResults {
+		if result == nil {
+			t.Error("Expected result to not be nil")
+			continue
+		}
 		if result.JWT == "" {
 			t.Error("Expected JWT to be populated")
 		}
@@ -467,10 +499,12 @@ func TestConcurrentAPIKeyGeneration(t *testing.T) {
 	// Verify all KeyIDs are unique
 	seenKeyIDs := make(map[string]bool)
 	for _, result := range validResults {
-		if seenKeyIDs[result.KeyID] {
+		if result != nil && seenKeyIDs[result.KeyID] {
 			t.Errorf("Duplicate KeyID found: %s", result.KeyID)
 		}
-		seenKeyIDs[result.KeyID] = true
+		if result != nil {
+			seenKeyIDs[result.KeyID] = true
+		}
 	}
 }
 
@@ -484,11 +518,15 @@ func TestJWTSignatureVerificationWithReturnedPublicKey(t *testing.T) {
 	}
 
 	// Act
-	result, err := CreateJAPIKey(config)
+	result, err := NewJAPIKey(config)
 
 	// Assert
 	if err != nil {
 		t.Fatalf("Expected no error, but got: %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("Expected result to not be nil")
 	}
 
 	if result.JWT == "" {
@@ -546,11 +584,15 @@ func TestPrivateKeyNeverAccessibleAfterCreation(t *testing.T) {
 	}
 
 	// Act
-	result, err := CreateJAPIKey(config)
+	result, err := NewJAPIKey(config)
 
 	// Assert
 	if err != nil {
 		t.Fatalf("Expected no error, but got: %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("Expected result to not be nil")
 	}
 
 	// Verify that the result does not contain the private key
@@ -578,13 +620,13 @@ func TestPrivateKeyNeverAccessibleAfterCreation(t *testing.T) {
 	}
 
 	// The function implementation should ensure that the private key
-	// is not accessible outside the CreateJAPIKey function scope
+	// is not accessible outside the NewJAPIKey function scope
 	// This is verified by design since the function signature only returns public information
 }
 
 func TestIntegrationFullWorkflow(t *testing.T) {
 	// Test the full workflow of creating a JAPIKey and verifying its signature
-	
+
 	// Step 1: Create a JAPIKey
 	config := Config{
 		Subject:   "integration-test-user",
@@ -597,9 +639,13 @@ func TestIntegrationFullWorkflow(t *testing.T) {
 		},
 	}
 
-	result, err := CreateJAPIKey(config)
+	result, err := NewJAPIKey(config)
 	if err != nil {
 		t.Fatalf("Expected no error during JAPIKey creation, but got: %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("Expected result to not be nil")
 	}
 
 	// Step 2: Verify the result has all expected components
@@ -669,21 +715,25 @@ func TestUserClaimsCannotOverrideConfigClaims(t *testing.T) {
 		Audience:  "original-audience",
 		ExpiresAt: time.Now().Add(1 * time.Hour),
 		Claims: jwt.MapClaims{
-			"sub": "attempted-override-subject",  // Should not override config.Subject
-			"iss": "https://attempted-override-issuer.com",  // Should not override config.Issuer
-			"aud": "attempted-override-audience",  // Should not override config.Audience
-			"exp": time.Now().Add(2 * time.Hour).Unix(),  // Should not override config.ExpiresAt
-			"ver": "attempted-override-version",  // Should not override the version identifier
-			"custom_claim": "custom_value",  // This should be preserved
+			"sub":          "attempted-override-subject",            // Should not override config.Subject
+			"iss":          "https://attempted-override-issuer.com", // Should not override config.Issuer
+			"aud":          "attempted-override-audience",           // Should not override config.Audience
+			"exp":          time.Now().Add(2 * time.Hour).Unix(),    // Should not override config.ExpiresAt
+			"ver":          "attempted-override-version",            // Should not override the version identifier
+			"custom_claim": "custom_value",                          // This should be preserved
 		},
 	}
 
 	// Act
-	result, err := CreateJAPIKey(config)
+	result, err := NewJAPIKey(config)
 
 	// Assert
 	if err != nil {
 		t.Fatalf("Expected no error, but got: %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("Expected result to not be nil")
 	}
 
 	// Parse the JWT to check the actual claims

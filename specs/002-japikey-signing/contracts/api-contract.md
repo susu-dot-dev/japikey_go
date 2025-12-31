@@ -3,18 +3,29 @@
 ## Overview
 This document describes the interface for the JAPIKey signing library.
 
+The library provides a top-level package that re-exports the API surface from the internal japikey package, making it available at the module root level for easier imports.
+
 ## Functions
 
-### CreateJAPIKey(config Config) (Result, error)
+### NewJAPIKey(config Config) (*JAPIKey, error)
 
-Creates a new JAPIKey with the provided configuration.
+Creates a new JAPIKey with the provided configuration using the standard Go constructor pattern.
 
 #### Parameters
 - `config` (Config): Configuration object containing the required and optional parameters
 
 #### Returns
-- `Result`: A result object containing the generated JWT, public key, and other metadata
+- `*JAPIKey`: A pointer to the JAPIKey struct containing the generated JWT, public key, and other metadata
 - `error`: An error if the operation failed, nil otherwise
+
+## Re-exports
+
+The top-level package re-exports the following types and functions from the internal japikey package:
+
+- `Config` type for configuration
+- `JAPIKey` type as the primary data type
+- `NewJAPIKey` function as the constructor
+- Error types: `JAPIKeyValidationError`, `JAPIKeyGenerationError`, `JAPIKeySigningError`
 
 #### Errors
 - `JAPIKeyValidationError`: When input parameters fail validation
