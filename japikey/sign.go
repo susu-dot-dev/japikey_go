@@ -38,26 +38,16 @@ func NewJAPIKey(config Config) (*JAPIKey, error) {
 
 	keyID := uuid.New().String()
 
-	claims := jwt.MapClaims{
-		"sub": config.Subject,
-		"iss": config.Issuer,
-		"aud": config.Audience,
-		"exp": config.ExpiresAt.Unix(),
-		"ver": "japikey-v1",
-	}
-
-	// Add user claims, but ensure they don't override the mandatory config claims or version
+	claims := jwt.MapClaims{}
 	for k, v := range config.Claims {
-		// Skip if the key is one of the mandatory claims that should not be overridden
-		switch k {
-		case "sub", "iss", "aud", "exp", "ver":
-			// Skip these keys as they are protected and should not be overridden
-			continue
-		default:
-			claims[k] = v
-		}
+		claims[k] = v
 	}
-
+	// Add the mandatory claims last, to ensure that user-provided claims cannot override them
+	claims["sub"] = config.Subject
+	claims["iss"] = config.Issuer
+	claims["aud"] = config.Audience
+	claims["exp"] = config.ExpiresAt.Unix()
+	claims["ver"] = "japikey-v1"
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 
 	token.Header["kid"] = keyID
