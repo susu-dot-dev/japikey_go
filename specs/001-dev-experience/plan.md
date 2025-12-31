@@ -7,7 +7,7 @@
 
 ## Summary
 
-This plan focuses on improving the developer experience for japikey_go by creating a well-structured codebase with clear setup instructions, a hello world module example, and comprehensive documentation. The implementation will include a CONTRIBUTING.md file with setup instructions, a minimal hello world Go module demonstrating proper structure, and a quickstart guide in the README. The CI will be configured to run tests, linters, and basic functionality checks on Linux only, using GitHub Actions.
+This plan focuses on improving the developer experience for japikey_go by creating a well-structured codebase with clear setup instructions, a example demonstrating japikey functionality, and comprehensive documentation. The implementation will include a CONTRIBUTING.md file with setup instructions, a minimal example demonstrating proper usage, and a quickstart guide in the README. The CI will be configured to run tests, linters, and basic functionality checks on Linux only, using GitHub Actions.
 
 ## Technical Context
 
@@ -63,16 +63,16 @@ japikey_go/
 ├── .github/
 │   └── workflows/
 │       └── ci.yml
-├── hello/
-│   ├── hello.go
-│   └── hello_test.go
+├── example/
+│   ├── main.go
+│   └── go.mod
 ├── docs/
 │   └── quickstart.md
 └── internal/
     └── [other internal packages as needed]
 ```
 
-**Structure Decision**: Single Go module project structure with a hello world module in a dedicated package, documentation in docs/, Makefile for consistent local and CI operations, and CI configuration in .github/workflows/. This follows Go project conventions and the library-first architecture principle from the constitution.
+**Structure Decision**: Single Go module project structure with a example demonstrating japikey functionality, documentation in docs/, Makefile for consistent local and CI operations, and CI configuration in .github/workflows/. This follows Go project conventions and the library-first architecture principle from the constitution.
 
 ## Complexity Tracking
 

@@ -1,16 +1,14 @@
-# JAPIKey
-
-JAPIKey is a Go library for generating secure API keys using JWT technology. It follows the japikey specification and generates API keys with proper cryptographic signatures without storing secrets in a database.
+# Quickstart Guide: JAPIKey Signing Library
 
 ## Installation
 
 ```bash
-go get github.com/susu-dot-dev/japikey
+go get github.com/your-org/japikey
 ```
 
-## Usage
+## Basic Usage
 
-### Basic Usage
+### Creating a JAPIKey
 
 ```go
 package main
@@ -51,7 +49,7 @@ func main() {
 }
 ```
 
-### Adding Custom Claims
+## Adding Custom Claims
 
 ```go
 config := japikey.Config{
@@ -104,14 +102,3 @@ if err != nil {
     }
 }
 ```
-
-## Security
-
-- Each API key is generated with a unique RSA key pair (2048-bit)
-- Private keys are discarded immediately after signing to ensure they're never stored
-- The library follows JWT standards (RFC 7519) for token structure and claims
-- Thread-safe operation is supported for concurrent API key generation requests
-
-## License
-
-This project is licensed under the terms specified in the LICENSE file.

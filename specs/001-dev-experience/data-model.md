@@ -2,12 +2,12 @@
 
 ## Entities
 
-### Hello Module
-- **Name**: hello
-- **Purpose**: Minimal example demonstrating basic Go module structure
-- **Files**: 
-  - hello.go: Contains the main function that returns "Hello, World!"
-  - hello_test.go: Contains tests for the hello module functionality
+### Example
+- **Name**: example
+- **Purpose**: Minimal example demonstrating japikey functionality usage
+- **Files**:
+  - main.go: Contains the example demonstrating how to use japikey
+  - go.mod: Contains module dependencies for the example
 
 ### Documentation
 - **Name**: quickstart guide
@@ -34,7 +34,7 @@
 - **Content**: Commands for testing, linting, building, and other common operations
 
 ## Relationships
-- The hello module demonstrates the structure referenced in CONTRIBUTING.md
+- The example demonstrates the usage patterns referenced in CONTRIBUTING.md
 - The quickstart guide references the main library functionality
 - CI configuration validates both code and documentation changes
 - Makefile provides consistent commands for both local development and CI operations
