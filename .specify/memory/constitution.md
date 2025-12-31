@@ -32,6 +32,10 @@ All cryptographic operations must use industry-standard algorithms; Private keys
 
 All features must begin with specification and security review; Code reviews must include security-focused validation; Automated security scanning required for all PRs; Documentation must be updated before merge
 
+## Code Quality Standards
+
+All code comments must add value that is not obvious from the code itself. Comments that merely restate the obvious, duplicate what the code clearly expresses, or describe what the code is doing step-by-step are prohibited. Function documentation should be omitted for simple functions where the name clearly indicates its purpose. Comments should focus on the "why" rather than the "what", explaining the reasoning behind complex implementations, security considerations, or non-obvious design decisions. Words describing how things work generally belong in specs, not in code comments.
+
 ## Governance
 All PRs/reviews must verify compliance with security and library-first principles; Complexity must be justified with security impact assessment; Use README.md for runtime development guidance
 

@@ -42,12 +42,37 @@ package main
 
 import (
     "fmt"
-    "github.com/susu-dot-dev/japikey-go/hello"
+    "time"
+    "github.com/susu-dot-dev/japikey-go"
 )
 
 func main() {
-    result := hello.GetMessage()
-    fmt.Println(result) // Outputs: Hello, World!
+    // Create a config with required fields
+    config := japikey.Config{
+        Subject:   "user-123",
+        Issuer:    "https://myapp.com",
+        Audience:  "myapp-users",
+        ExpiresAt: time.Now().Add(24 * time.Hour), // 24 hours from now
+    }
+
+    // Generate the JAPIKey
+    result, err := japikey.NewJAPIKey(config)
+    if err != nil {
+        // Handle error appropriately
+        if validationErr, ok := err.(*japikey.JAPIKeyValidationError); ok {
+            fmt.Printf("Validation error: %s\n", validationErr.Message)
+        } else if genErr, ok := err.(*japikey.JAPIKeyGenerationError); ok {
+            fmt.Printf("Generation error: %s\n", genErr.Message)
+        } else if signingErr, ok := err.(*japikey.JAPIKeySigningError); ok {
+            fmt.Printf("Signing error: %s\n", signingErr.Message)
+        }
+        return
+    }
+
+    // Use the generated JWT and public key
+    fmt.Printf("Generated JWT: %s\n", result.JWT)
+    fmt.Printf("Key ID: %s\n", result.KeyID)
+    fmt.Printf("Public Key: %+v\n", result.PublicKey)
 }
 ```
 
@@ -58,4 +83,4 @@ func main() {
 
 ## Next Steps
 
-Check out the hello module in the `hello/` directory for a complete example of basic functionality.
+Check out the example in the `example/` directory for a complete example of basic functionality.

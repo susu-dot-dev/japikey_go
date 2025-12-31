@@ -35,6 +35,14 @@ build:
 .PHONY: test
 test:
 	$(GOTEST) -v ./...
+	@echo "Running example to ensure it works..."
+	cd example && go run main.go
+
+## Run examples
+.PHONY: examples
+examples:
+	@echo "Running example to ensure it works..."
+	cd example && go run main.go
 
 ## Run tests with coverage
 .PHONY: test-coverage
@@ -97,6 +105,7 @@ help:
 	@echo "Available targets:"
 	@echo "  build         - Build the project"
 	@echo "  test          - Run tests"
+	@echo "  examples      - Run examples"
 	@echo "  test-coverage - Run tests with coverage"
 	@echo "  lint          - Run linter"
 	@echo "  fmt           - Format code"

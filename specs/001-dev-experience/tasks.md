@@ -32,7 +32,7 @@ description: "Task list template for feature implementation"
 **Purpose**: Project initialization and basic structure
 
 - [X] T001 Initialize Go module with `go mod init github.com/susu-dot-dev/japikey-go`
-- [X] T002 [P] Create project directory structure: hello/, docs/, .github/workflows/
+- [X] T002 [P] Create project directory structure: example/, docs/, .github/workflows/
 - [X] T003 [P] Install required dependencies: github.com/golang-jwt/jwt/v5, golang.org/x/crypto
 
 ---
@@ -80,24 +80,24 @@ Examples of foundational tasks (adjust based on your project):
 
 ---
 
-## Phase 4: User Story 2 - Hello World Module (Priority: P1)
+## Phase 4: User Story 2 - Example Module (Priority: P1)
 
-**Goal**: Create a minimal hello world Go module example that demonstrates basic module structure
+**Goal**: Create a minimal example that demonstrates basic module structure and usage
 
-**Independent Test**: A developer can examine the hello world module and understand the basic project layout.
+**Independent Test**: A developer can examine the example and understand the basic project layout and usage.
 
 ### Tests for User Story 2 (OPTIONAL - only if tests requested) ⚠️
 
-- [X] T016 [P] [US2] Create hello module test file hello/hello_test.go with failing test for GetMessage function
-- [X] T017 [P] [US2] Add benchmark test for hello module in hello/hello_test.go
+- [X] T016 [P] [US2] Create example test file example/example_test.go with tests for japikey functionality
+- [X] T017 [P] [US2] Add benchmark test for example in example/example_test.go
 
 ### Implementation for User Story 2
 
-- [X] T018 [P] [US2] Create hello module interface contract in hello/hello.go with GetMessage function signature
-- [X] T019 [US2] Implement GetMessage function that returns "Hello, World!" in hello/hello.go
-- [X] T020 [US2] Add proper documentation comments to hello module functions
-- [X] T021 [US2] Update Makefile to include hello module in build and test processes
-- [X] T022 [US2] Verify tests pass for hello module
+- [X] T018 [P] [US2] Create example demonstrating japikey usage in example/main.go
+- [X] T019 [US2] Implement example that shows how to create JAPIKeys in example/main.go
+- [X] T020 [US2] Add proper documentation comments to example code
+- [X] T021 [US2] Update Makefile to include example in build and test processes
+- [X] T022 [US2] Verify example runs correctly
 
 **Checkpoint**: At this point, User Stories 1 AND 2 should both work independently
 
@@ -116,10 +116,10 @@ Examples of foundational tasks (adjust based on your project):
 ### Implementation for User Story 3
 
 - [X] T024 [P] [US3] Create quickstart guide in docs/quickstart.md with installation instructions
-- [X] T025 [US3] Add basic usage example to quickstart guide using hello module
+- [X] T025 [US3] Add basic usage example to quickstart guide using example
 - [X] T026 [US3] Update README.md with quickstart section for external users
 - [X] T027 [US3] Add requirements section to quickstart guide (Go 1.21+, Linux/Mac)
-- [X] T028 [US3] Include next steps section referencing hello module in quickstart guide
+- [X] T028 [US3] Include next steps section referencing example in quickstart guide
 
 **Checkpoint**: All user stories should now be independently functional
 
