@@ -34,9 +34,9 @@ tests/
 Go 1.21 or later (as specified in functional requirement FR-008): Follow standard conventions
 
 ## Recent Changes
+- 004-japikey-verification: Added Go 1.21 or later (as specified in functional requirement FR-008) + Standard Go modules, github.com/golang-jwt/jwt/v5 for JWT handling, golang.org/x/crypto for cryptographic operations
 - 002-japikey-signing: Added Go 1.21 or later + github.com/golang-jwt/jwt/v5 for JWT handling, golang.org/x/crypto for cryptographic operations
 - 002-japikey-signing: Added Go 1.21 or later + github.com/golang-jwt/jwt/v5 for JWT handling, golang.org/x/crypto for cryptographic operations
-- 001-dev-experience: Added Go 1.21 or later (as specified in functional requirement FR-008) + Standard Go modules, github.com/golang-jwt/jwt/v5 for JWT handling, golang.org/x/crypto for cryptographic operations
 
 
 <!-- MANUAL ADDITIONS START -->

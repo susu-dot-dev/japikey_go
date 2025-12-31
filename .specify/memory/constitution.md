@@ -24,6 +24,12 @@ Tests must be written to validate the correctness of the spec before implementin
 ### Security & Observability
 Security-focused logging and monitoring; All security-related events must be logged with appropriate detail for audit trails
 
+### Testing Requirement
+No code task can be considered complete unless there are tests validating that it works properly (if tests are feasible). All implementations must include comprehensive unit, integration, and security tests as appropriate for the feature being developed.
+
+### Dependency Utilization
+If functionality exists within an already used direct dependency, then it should be preferred over writing our own implementation. This reduces code complexity, potential security vulnerabilities, and maintenance overhead while leveraging well-tested and maintained code.
+
 ## Additional Security Requirements
 
 All cryptographic operations must use industry-standard algorithms; Private keys must never be stored or logged; API key validation must include proper issuer verification; All security-sensitive operations must have rate limiting
