@@ -28,17 +28,17 @@
 
 ### Implementation for User Story 1
 
-- [ ] T001 [US1] Create jwx tool project structure in jwx/tool/ with main.go, parse.go, generate.go (FR-051)
-- [ ] T002 [US1] Implement parse command to read JSON from stdin and output base64 public key in jwx/tool/parse.go (FR-052)
-- [ ] T003 [US1] Implement error handling for invalid JWK in parse command in jwx/tool/parse.go (FR-053)
-- [ ] T004 [US1] Implement generate command to read base64 public key from stdin and UUID from args in jwx/tool/generate.go (FR-054)
-- [ ] T005 [US1] Implement generate command to output JWKS JSON in jwx/tool/generate.go (FR-054)
-- [ ] T006 [US1] Create separate go module for tool using lestrrat-go/jwx/jwk in jwx/tool/go.mod (FR-057)
-- [ ] T007 [US1] Create jwx CLI tool with its own go.mod in jwx/tool/ (FR-038)
-- [ ] T008 [US1] Implement jwx CLI tool to generate example keys and JWKS in jwx/tool/generate.go (FR-038)
-- [ ] T009 [US1] Add makefile command to execute jwx CLI tool in Makefile (FR-039)
-- [ ] T010 [US1] Update Makefile to build jwx tool before running tests (FR-055)
-- [ ] T011 [US1] Ensure the jwx tool works correctly
+- [x] T001 [US1] Create jwx tool project structure in jwx/tool/ with main.go, parse.go, generate.go (FR-051)
+- [x] T002 [US1] Implement parse command to read JSON from stdin and output base64 public key in jwx/tool/parse.go (FR-052)
+- [x] T003 [US1] Implement error handling for invalid JWK in parse command in jwx/tool/parse.go (FR-053)
+- [x] T004 [US1] Implement generate command to read base64 public key from stdin and UUID from args in jwx/tool/generate.go (FR-054)
+- [x] T005 [US1] Implement generate command to output JWKS JSON in jwx/tool/generate.go (FR-054)
+- [x] T006 [US1] Create separate go module for tool using lestrrat-go/jwx/jwk in jwx/tool/go.mod (FR-057)
+- [x] T007 [US1] Create jwx CLI tool with its own go.mod in jwx/tool/ (FR-038)
+- [x] T008 [US1] Implement jwx CLI tool to generate example keys and JWKS in jwx/tool/generate.go (FR-038)
+- [x] T009 [US1] Add makefile command to execute jwx CLI tool in Makefile (FR-039)
+- [x] T010 [US1] Update Makefile to build jwx tool before running tests (FR-055)
+- [x] T011 [US1] Ensure the jwx tool works correctly
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
 
@@ -229,4 +229,4 @@
 
 ## Additional Tasks
 
-- [ ] T066 Add gitignore entry to ignore compiled binaries per FR-059
+- [x] T066 Add gitignore entry to ignore compiled binaries per FR-059

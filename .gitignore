@@ -4,6 +4,8 @@
 *.out
 *.bin
 build/
+jwx/tool/jwx
+jwx/tool/jwx.exe
 
 # Go build artifacts
 *.so
