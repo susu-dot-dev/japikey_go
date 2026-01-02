@@ -31,18 +31,37 @@ all: test
 build:
 	$(GOBUILD) -v ./...
 
+## Build the jwx verification tool
+.PHONY: build-jwx
+build-jwx:
+	cd jwx/tool && $(GOBUILD) -v .
+
+## Run the jwx verification tool
+.PHONY: run-jwx
+run-jwx: build-jwx
+	@echo "Running jwx tool..."
+	@cd jwx/tool && go run . --help
+
 ## Run tests
 .PHONY: test
-test:
+test: build-jwx
 	$(GOTEST) -v ./...
-	@echo "Running example to ensure it works..."
+	@echo "Running examples to ensure they work..."
 	cd example && go run main.go
+	cd example && go run jwks_example.go
+
+## Run tests including jwx tool
+.PHONY: test-with-jwx
+test-with-jwx: build-jwx test
+	@echo "Testing jwx tool..."
+	cd jwx/tool && $(GOTEST) -v .
 
 ## Run examples
 .PHONY: examples
 examples:
-	@echo "Running example to ensure it works..."
+	@echo "Running examples to ensure they work..."
 	cd example && go run main.go
+	cd example && go run jwks_example.go
 
 ## Run tests with coverage
 .PHONY: test-coverage
@@ -54,7 +73,7 @@ test-coverage:
 .PHONY: lint
 lint:
 	golangci-lint run ./...
-	
+
 ## Format code
 .PHONY: fmt
 fmt:
@@ -101,10 +120,12 @@ ci: deps tidy fmt vet lint test build
 
 # Help target
 .PHONY: help
-help: 
+help:
 	@echo "Available targets:"
 	@echo "  build         - Build the project"
+	@echo "  build-jwx     - Build the jwx verification tool"
 	@echo "  test          - Run tests"
+	@echo "  test-with-jwx - Run tests including jwx tool"
 	@echo "  examples      - Run examples"
 	@echo "  test-coverage - Run tests with coverage"
 	@echo "  lint          - Run linter"

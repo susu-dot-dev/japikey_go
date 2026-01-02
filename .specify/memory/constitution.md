@@ -25,10 +25,7 @@ Tests must be written to validate the correctness of the spec before implementin
 Security-focused logging and monitoring; All security-related events must be logged with appropriate detail for audit trails
 
 ### Testing Requirement
-No code task can be considered complete unless there are tests validating that it works properly (if tests are feasible). All implementations must include comprehensive unit, integration, and security tests as appropriate for the feature being developed.
-
-### Dependency Utilization
-If functionality exists within an already used direct dependency, then it should be preferred over writing our own implementation. This reduces code complexity, potential security vulnerabilities, and maintenance overhead while leveraging well-tested and maintained code.
+A coding task is not considered complete unless it has been tested, whenever possible. This ensures code reliability and prevents regressions.
 
 ## Additional Security Requirements
 
