@@ -4,6 +4,8 @@
 *.out
 *.bin
 build/
+jwx/tool/jwx
+jwx/tool/jwx.exe
 
 # Go build artifacts
 *.so
@@ -34,3 +36,6 @@ Thumbs.db
 
 # Coverage
 coverage.out
+
+# Generated test files
+example/jwks.json

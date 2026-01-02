@@ -1,11 +1,16 @@
 package japikey
 
 import (
+	"encoding/json"
 	"fmt"
+	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
+	"github.com/susu-dot-dev/japikey/errors"
 )
 
 func TestNewJAPIKey_WithValidInputs_ReturnsValidJWT(t *testing.T) {
@@ -33,7 +38,7 @@ func TestNewJAPIKey_WithValidInputs_ReturnsValidJWT(t *testing.T) {
 		t.Error("Expected JWT to be populated, but it was empty")
 	}
 
-	if result.KeyID == "" {
+	if result.KeyID == uuid.Nil {
 		t.Error("Expected KeyID to be populated, but it was empty")
 	}
 
@@ -152,8 +157,19 @@ func TestNewJAPIKey_ContainsKeyIDInHeader(t *testing.T) {
 		// This test will fail until we implement task T026
 		if kid, exists := header["kid"]; !exists {
 			t.Error("Expected key ID 'kid' to be present in JWT header")
-		} else if kid != result.KeyID {
-			t.Errorf("Expected key ID in header to match result.KeyID, got %v, want %v", kid, result.KeyID)
+		} else {
+			kidStr, ok := kid.(string)
+			if !ok {
+				kidUUID, ok := kid.(uuid.UUID)
+				if !ok || kidUUID != result.KeyID {
+					t.Errorf("Expected key ID in header to match result.KeyID, got %v, want %v", kid, result.KeyID)
+				}
+			} else {
+				kidUUID, err := uuid.Parse(kidStr)
+				if err != nil || kidUUID != result.KeyID {
+					t.Errorf("Expected key ID in header to match result.KeyID, got %v, want %v", kid, result.KeyID)
+				}
+			}
 		}
 	} else {
 		t.Error("Could not access header from JWT")
@@ -255,10 +271,7 @@ func TestNewJAPIKey_WithCryptographicFailure_ReturnsGenerationError(t *testing.T
 
 	// We can't easily force a cryptographic failure in rsa.GenerateKey
 	// So we'll test that the error type exists and implements the error interface
-	err := &JAPIKeyGenerationError{
-		Message: "test error",
-		Code:    "KeyGenerationError",
-	}
+	err := errors.NewInternalError("test error")
 
 	if err.Error() != "test error" {
 		t.Errorf("Expected error message 'test error', got '%s'", err.Error())
@@ -272,10 +285,7 @@ func TestNewJAPIKey_WithSigningFailure_ReturnsSigningError(t *testing.T) {
 
 	// We can't easily force a signing failure in token.SignedString
 	// So we'll test that the error type exists and implements the error interface
-	err := &JAPIKeySigningError{
-		Message: "test signing error",
-		Code:    "SigningError",
-	}
+	err := errors.NewInternalError("test signing error")
 
 	if err.Error() != "test signing error" {
 		t.Errorf("Expected error message 'test signing error', got '%s'", err.Error())
@@ -284,34 +294,17 @@ func TestNewJAPIKey_WithSigningFailure_ReturnsSigningError(t *testing.T) {
 
 func TestTypeAssertionsForErrorHandling(t *testing.T) {
 	// Test that type assertions work for specific error handling
-	validationErr := &JAPIKeyValidationError{
-		Message: "validation error",
-		Code:    "ValidationError",
-	}
-
-	generationErr := &JAPIKeyGenerationError{
-		Message: "generation error",
-		Code:    "KeyGenerationError",
-	}
-
-	signingErr := &JAPIKeySigningError{
-		Message: "signing error",
-		Code:    "SigningError",
-	}
+	validationErr := errors.NewValidationError("validation error")
+	internalErr := errors.NewInternalError("internal error")
 
 	// Test type assertion for validation error
-	if _, ok := interface{}(validationErr).(*JAPIKeyValidationError); !ok {
-		t.Error("Type assertion for JAPIKeyValidationError failed")
+	if _, ok := interface{}(validationErr).(*errors.ValidationError); !ok {
+		t.Error("Type assertion for ValidationError failed")
 	}
 
-	// Test type assertion for generation error
-	if _, ok := interface{}(generationErr).(*JAPIKeyGenerationError); !ok {
-		t.Error("Type assertion for JAPIKeyGenerationError failed")
-	}
-
-	// Test type assertion for signing error
-	if _, ok := interface{}(signingErr).(*JAPIKeySigningError); !ok {
-		t.Error("Type assertion for JAPIKeySigningError failed")
+	// Test type assertion for internal error
+	if _, ok := interface{}(internalErr).(*errors.InternalError); !ok {
+		t.Error("Type assertion for InternalError failed")
 	}
 }
 
@@ -342,7 +335,7 @@ func TestPrivateKeyNotAccessibleAfterCreation(t *testing.T) {
 		t.Error("Expected JWT to be populated")
 	}
 
-	if result.KeyID == "" {
+	if result.KeyID == uuid.Nil {
 		t.Error("Expected KeyID to be populated")
 	}
 
@@ -399,7 +392,7 @@ func TestThreadSafety(t *testing.T) {
 		if result.JWT == "" {
 			t.Error("Expected JWT to be populated")
 		}
-		if result.KeyID == "" {
+		if result.KeyID == uuid.Nil {
 			t.Error("Expected KeyID to be populated")
 		}
 		if result.PublicKey == nil {
@@ -488,7 +481,7 @@ func TestConcurrentAPIKeyGeneration(t *testing.T) {
 		if result.JWT == "" {
 			t.Error("Expected JWT to be populated")
 		}
-		if result.KeyID == "" {
+		if result.KeyID == uuid.Nil {
 			t.Error("Expected KeyID to be populated")
 		}
 		if result.PublicKey == nil {
@@ -497,7 +490,7 @@ func TestConcurrentAPIKeyGeneration(t *testing.T) {
 	}
 
 	// Verify all KeyIDs are unique
-	seenKeyIDs := make(map[string]bool)
+	seenKeyIDs := make(map[uuid.UUID]bool)
 	for _, result := range validResults {
 		if result != nil && seenKeyIDs[result.KeyID] {
 			t.Errorf("Duplicate KeyID found: %s", result.KeyID)
@@ -601,7 +594,7 @@ func TestPrivateKeyNeverAccessibleAfterCreation(t *testing.T) {
 		t.Error("Expected JWT to be populated")
 	}
 
-	if result.KeyID == "" {
+	if result.KeyID == uuid.Nil {
 		t.Error("Expected KeyID to be populated")
 	}
 
@@ -653,7 +646,7 @@ func TestIntegrationFullWorkflow(t *testing.T) {
 		t.Error("Expected JWT to be populated")
 	}
 
-	if result.KeyID == "" {
+	if result.KeyID == uuid.Nil {
 		t.Error("Expected KeyID to be populated")
 	}
 
@@ -702,8 +695,21 @@ func TestIntegrationFullWorkflow(t *testing.T) {
 	}
 
 	// Step 5: Verify the key ID in the JWT header matches the returned KeyID
-	if headerKid, exists := token.Header["kid"]; !exists || headerKid != result.KeyID {
-		t.Errorf("Expected key ID in header to match result.KeyID, got '%v', want '%v'", headerKid, result.KeyID)
+	if headerKid, exists := token.Header["kid"]; !exists {
+		t.Error("Expected key ID 'kid' to be present in JWT header")
+	} else {
+		kidStr, ok := headerKid.(string)
+		if !ok {
+			kidUUID, ok := headerKid.(uuid.UUID)
+			if !ok || kidUUID != result.KeyID {
+				t.Errorf("Expected key ID in header to match result.KeyID, got '%v', want '%v'", headerKid, result.KeyID)
+			}
+		} else {
+			kidUUID, err := uuid.Parse(kidStr)
+			if err != nil || kidUUID != result.KeyID {
+				t.Errorf("Expected key ID in header to match result.KeyID, got '%v', want '%v'", headerKid, result.KeyID)
+			}
+		}
 	}
 }
 
@@ -768,5 +774,194 @@ func TestUserClaimsCannotOverrideConfigClaims(t *testing.T) {
 		}
 	} else {
 		t.Error("Could not parse claims from JWT")
+	}
+}
+
+func TestJAPIKey_ToJWKS_WithValidInputs_ReturnsValidJWKS(t *testing.T) {
+	// Arrange
+	config := Config{
+		Subject:   "test-user",
+		Issuer:    "https://example.com",
+		Audience:  "test-audience",
+		ExpiresAt: time.Now().Add(1 * time.Hour),
+	}
+
+	japikey, err := NewJAPIKey(config)
+	if err != nil {
+		t.Fatalf("Failed to create JAPIKey: %v", err)
+	}
+
+	// Act
+	jwks, err := japikey.ToJWKS()
+
+	// Assert
+	if err != nil {
+		t.Fatalf("Expected no error, but got: %v", err)
+	}
+
+	if jwks == nil {
+		t.Fatal("Expected JWKS to not be nil")
+	}
+
+	// Verify that the key ID matches
+	retrievedKeyID := jwks.GetKeyID()
+	if retrievedKeyID != japikey.KeyID {
+		t.Errorf("Expected key ID to be '%s', got '%s'", japikey.KeyID, retrievedKeyID)
+	}
+
+	// Verify that the public key matches
+	retrievedPublicKey, err := jwks.GetPublicKey(japikey.KeyID)
+	if err != nil {
+		t.Fatalf("Failed to retrieve public key from JWKS: %v", err)
+	}
+
+	if retrievedPublicKey.N.Cmp(japikey.PublicKey.N) != 0 {
+		t.Error("Expected modulus to match original public key")
+	}
+
+	if retrievedPublicKey.E != japikey.PublicKey.E {
+		t.Errorf("Expected exponent to match original public key, got %d, expected %d", retrievedPublicKey.E, japikey.PublicKey.E)
+	}
+}
+
+func TestJAPIKey_ToJWKS_WithInvalidKeyID_ReturnsValidationError(t *testing.T) {
+	// Arrange
+	config := Config{
+		Subject:   "test-user",
+		Issuer:    "https://example.com",
+		Audience:  "test-audience",
+		ExpiresAt: time.Now().Add(1 * time.Hour),
+	}
+
+	japikey, err := NewJAPIKey(config)
+	if err != nil {
+		t.Fatalf("Failed to create JAPIKey: %v", err)
+	}
+
+	// Set invalid key ID (uuid.Nil)
+	japikey.KeyID = uuid.Nil
+
+	// Act
+	jwks, err := japikey.ToJWKS()
+
+	// Assert
+	if err == nil {
+		t.Error("Expected error for invalid key ID, but got none")
+	}
+
+	if jwks != nil {
+		t.Error("Expected JWKS to be nil for invalid key ID")
+	}
+
+	// Verify it's a ValidationError
+	if _, ok := err.(*errors.ValidationError); !ok {
+		t.Errorf("Expected ValidationError, but got: %T", err)
+	}
+}
+
+func TestJAPIKey_ToJWKS_WithNullPublicKey_ReturnsValidationError(t *testing.T) {
+	// Arrange
+	config := Config{
+		Subject:   "test-user",
+		Issuer:    "https://example.com",
+		Audience:  "test-audience",
+		ExpiresAt: time.Now().Add(1 * time.Hour),
+	}
+
+	japikey, err := NewJAPIKey(config)
+	if err != nil {
+		t.Fatalf("Failed to create JAPIKey: %v", err)
+	}
+
+	// Set null public key
+	japikey.PublicKey = nil
+
+	// Act
+	jwks, err := japikey.ToJWKS()
+
+	// Assert
+	if err == nil {
+		t.Error("Expected error for null public key, but got none")
+	}
+
+	if jwks != nil {
+		t.Error("Expected JWKS to be nil for null public key")
+	}
+
+	// Verify it's a ValidationError
+	if _, ok := err.(*errors.ValidationError); !ok {
+		t.Errorf("Expected ValidationError, but got: %T", err)
+	}
+}
+
+func TestJAPIKey_ToJWKS_ValidateAgainstJWXTool(t *testing.T) {
+	// Arrange
+	config := Config{
+		Subject:   "test-user",
+		Issuer:    "https://example.com",
+		Audience:  "test-audience",
+		ExpiresAt: time.Now().Add(1 * time.Hour),
+	}
+
+	japikey, err := NewJAPIKey(config)
+	if err != nil {
+		t.Fatalf("Failed to create JAPIKey: %v", err)
+	}
+
+	// Act: Convert to JWKS
+	jwks, err := japikey.ToJWKS()
+	if err != nil {
+		t.Fatalf("Failed to convert JAPIKey to JWKS: %v", err)
+	}
+
+	// Serialize to JSON
+	jsonBytes, err := json.Marshal(jwks)
+	if err != nil {
+		t.Fatalf("Failed to serialize JWKS: %v", err)
+	}
+
+	// The jwx tool's parse command expects a single JWK, not a JWKS
+	// So we need to extract the single JWK from our JWKS to test with the tool
+	var jwksStruct map[string]interface{}
+	if err := json.Unmarshal(jsonBytes, &jwksStruct); err != nil {
+		t.Fatalf("Failed to unmarshal JWKS for testing: %v", err)
+	}
+
+	keys, ok := jwksStruct["keys"].([]interface{})
+	if !ok || len(keys) != 1 {
+		t.Fatalf("Expected JWKS to contain exactly one key, got %d", len(keys))
+	}
+
+	singleJWK := keys[0]
+	jwkBytes, err := json.Marshal(singleJWK)
+	if err != nil {
+		t.Fatalf("Failed to marshal single JWK: %v", err)
+	}
+
+	// Use the jwx tool to parse this single JWK and verify it's valid
+	// This command should parse the JWK and output the public key as base64
+	cmd := exec.Command("bash", "-c", fmt.Sprintf("cd ../jwx/tool && echo '%s' | go run . parse", string(jwkBytes)))
+	output, err := cmd.CombinedOutput()
+
+	// If the jwx tool is not available or fails, we should skip this test
+	if err != nil {
+		// Check if the error is due to the jwx tool not being available
+		if strings.Contains(string(output), "command not found") ||
+			strings.Contains(string(output), "cannot find") ||
+			strings.Contains(err.Error(), "executable file not found") ||
+			strings.Contains(string(output), "No such file or directory") {
+			t.Skip("jwx tool not available, skipping validation test")
+		}
+
+		// If it's a different error, check if it's just the parsing that failed
+		// but the tool exists
+		t.Logf("jwx tool output: %s, error: %v", string(output), err)
+		t.Error("JWK format is not compatible with jwx tool")
+		return
+	}
+
+	// If the command succeeded, the JWK format is valid according to the jwx tool
+	if len(output) == 0 {
+		t.Error("jwx tool returned empty output for valid JWK")
 	}
 }

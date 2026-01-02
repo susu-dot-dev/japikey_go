@@ -4,32 +4,34 @@
 package japikey
 
 import (
+	"crypto/rsa"
+
+	"github.com/google/uuid"
+	"github.com/susu-dot-dev/japikey/errors"
+	"github.com/susu-dot-dev/japikey/internal/jwks"
 	"github.com/susu-dot-dev/japikey/japikey"
 )
 
-// Config holds the configuration for creating a JAPIKey.
-// It contains the required and optional parameters for API key generation.
 type Config = japikey.Config
 
-// JAPIKey represents the primary data type for an API key.
-// It contains the JWT string, public key, and key identifier.
 type JAPIKey = japikey.JAPIKey
 
-// NewJAPIKey creates a new JAPIKey with the provided configuration using the standard Go constructor pattern.
-// It returns a pointer to the JAPIKey struct containing the generated JWT, public key, and other metadata.
-// The function follows Go naming conventions (NewX pattern) for constructor functions.
 func NewJAPIKey(config Config) (*JAPIKey, error) {
 	return japikey.NewJAPIKey(config)
 }
 
-// JAPIKeyValidationError is returned when input parameters fail validation.
-// Examples include expired time or empty subject.
-type JAPIKeyValidationError = japikey.JAPIKeyValidationError
+type ValidationError = errors.ValidationError
 
-// JAPIKeyGenerationError is returned when cryptographic operations fail during key generation.
-// Examples include failure to generate RSA key pair or insufficient entropy.
-type JAPIKeyGenerationError = japikey.JAPIKeyGenerationError
+type ConversionError = errors.ConversionError
 
-// JAPIKeySigningError is returned when JWT signing operations fail.
-// Examples include failure to sign the JWT with the private key.
-type JAPIKeySigningError = japikey.JAPIKeySigningError
+// KeyNotFoundError is kept separate from ValidationError because clients may need different behavior
+// (e.g., retry with different key, fetch from different source)
+type KeyNotFoundError = errors.KeyNotFoundError
+
+type InternalError = errors.InternalError
+
+type JWKS = jwks.JWKS
+
+func NewJWKS(publicKey *rsa.PublicKey, kid uuid.UUID) (*JWKS, error) {
+	return jwks.NewJWKS(publicKey, kid)
+}

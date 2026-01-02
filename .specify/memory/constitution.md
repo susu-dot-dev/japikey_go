@@ -24,6 +24,9 @@ Tests must be written to validate the correctness of the spec before implementin
 ### Security & Observability
 Security-focused logging and monitoring; All security-related events must be logged with appropriate detail for audit trails
 
+### Testing Requirement
+A coding task is not considered complete unless it has been tested, whenever possible. This ensures code reliability and prevents regressions.
+
 ## Additional Security Requirements
 
 All cryptographic operations must use industry-standard algorithms; Private keys must never be stored or logged; API key validation must include proper issuer verification; All security-sensitive operations must have rate limiting

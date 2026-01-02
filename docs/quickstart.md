@@ -59,12 +59,10 @@ func main() {
     result, err := japikey.NewJAPIKey(config)
     if err != nil {
         // Handle error appropriately
-        if validationErr, ok := err.(*japikey.JAPIKeyValidationError); ok {
-            fmt.Printf("Validation error: %s\n", validationErr.Message)
-        } else if genErr, ok := err.(*japikey.JAPIKeyGenerationError); ok {
-            fmt.Printf("Generation error: %s\n", genErr.Message)
-        } else if signingErr, ok := err.(*japikey.JAPIKeySigningError); ok {
-            fmt.Printf("Signing error: %s\n", signingErr.Message)
+        if validationErr, ok := err.(*japikey.ValidationError); ok {
+            fmt.Printf("Validation error: %s\n", validationErr.Error())
+        } else if internalErr, ok := err.(*japikey.InternalError); ok {
+            fmt.Printf("Internal error: %s\n", internalErr.Error())
         }
         return
     }
@@ -81,6 +79,78 @@ func main() {
 - Go 1.21 or later
 - Linux or Mac operating system
 
+## JWKS (JSON Web Key Set) Support
+
+The library also provides support for converting JAPIKeys to JWKS format and working with JWKS:
+
+### Converting JAPIKey to JWKS
+
+```go
+// Create a JAPIKey
+japikeyResult, err := japikey.NewJAPIKey(config)
+if err != nil {
+    log.Fatal(err)
+}
+
+// Convert to JWKS
+jwks, err := japikeyResult.ToJWKS()
+if err != nil {
+    log.Fatal(err)
+}
+
+// Serialize to JSON
+jwksJSON, err := json.Marshal(jwks)
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Println(string(jwksJSON))
+```
+
+### Creating JWKS from RSA Public Key
+
+```go
+import (
+    "crypto/rsa"
+    "github.com/google/uuid"
+)
+
+// Create JWKS directly from RSA public key and UUID
+publicKey := /* your RSA public key */
+keyID := uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174000"))
+
+jwks, err := japikey.NewJWKS(publicKey, keyID)
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+### Extracting Information from JWKS
+
+```go
+// Get the key ID from JWKS
+keyID := jwks.GetKeyID()
+
+// Get the public key for a specific key ID
+publicKey, err := jwks.GetPublicKey(keyID)
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+### Deserializing JWKS from JSON
+
+```go
+jsonStr := `{"keys":[{"kty":"RSA","kid":"...","n":"...","e":"..."}]}`
+var jwks japikey.JWKS
+err := json.Unmarshal([]byte(jsonStr), &jwks)
+if err != nil {
+    log.Fatal(err)
+}
+```
+
 ## Next Steps
 
-Check out the example in the `example/` directory for a complete example of basic functionality.
+Check out the examples in the `example/` directory:
+- `example/main.go` - Basic JAPIKey usage
+- `example/jwks_example.go` - Complete JWKS examples
+- `example/jwks.json` - Sample JWKS file for testing
