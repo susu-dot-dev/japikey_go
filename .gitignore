@@ -6,6 +6,8 @@
 build/
 jwx/tool/jwx
 jwx/tool/jwx.exe
+jwx/tool/tool
+jwx/tool/tool.exe
 
 # Go build artifacts
 *.so

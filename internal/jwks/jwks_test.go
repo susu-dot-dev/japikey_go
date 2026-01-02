@@ -681,7 +681,7 @@ func TestJWKS_ZeroValueEncoding(t *testing.T) {
 func isValidBase64url(s string) bool {
 	// Check that it contains only valid Base64url characters
 	for _, r := range s {
-		if !((r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_') {
+		if (r < 'A' || r > 'Z') && (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '-' && r != '_' {
 			return false
 		}
 	}
