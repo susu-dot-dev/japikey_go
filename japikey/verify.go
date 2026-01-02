@@ -2,8 +2,6 @@ package japikey
 
 import (
 	"crypto/rsa"
-	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -39,7 +37,7 @@ type VerifyConfig struct {
 	Timeout time.Duration
 }
 
-// validateVersion validates the version claim format and number.
+// validateVersion validates the version claim from MapClaims.
 func validateVersion(claims jwt.MapClaims) error {
 	versionRaw, ok := claims[VersionClaim]
 	if !ok {
@@ -51,13 +49,15 @@ func validateVersion(claims jwt.MapClaims) error {
 		return japikeyerrors.NewValidationError("token version claim must be a string")
 	}
 
-	_, err := NewJapiKeyVersion(version, MaxVersion)
-	return err
+	if version != "japikey-v1" {
+		return japikeyerrors.NewValidationError(fmt.Sprintf("invalid version: %s, expected japikey-v1", version))
+	}
+
+	return nil
 }
 
 // validateIssuer validates that the issuer claim exactly matches baseIssuerURL/keyID.
 // baseIssuerURL is required for security - issuer validation is mandatory.
-// The issuer is already validated as a string by gojwt through RegisteredClaims.
 func validateIssuer(issuer string, baseIssuerURL string, keyID uuid.UUID) error {
 	if baseIssuerURL == "" {
 		return japikeyerrors.NewInternalError("base issuer URL is required for issuer validation")
@@ -105,8 +105,13 @@ func extractKeyIDFromHeader(header map[string]interface{}) (uuid.UUID, error) {
 }
 
 // validateJAPIKeyClaims validates JAPIKey-specific requirements on the claims.
-func validateJAPIKeyClaims(claims jwt.MapClaims, issuer string, baseIssuerURL string, keyID uuid.UUID) error {
+func validateJAPIKeyClaims(claims jwt.MapClaims, baseIssuerURL string, keyID uuid.UUID) error {
 	if err := validateVersion(claims); err != nil {
+		return err
+	}
+
+	issuer, err := claims.GetIssuer()
+	if err != nil {
 		return err
 	}
 
@@ -143,7 +148,7 @@ func Verify(tokenString string, config VerifyConfig, keyFunc JWKCallback) (*Veri
 		jwt.WithExpirationRequired(),
 	)
 
-	claims := &jwt.RegisteredClaims{}
+	claims := jwt.MapClaims{}
 	var keyID uuid.UUID
 	token, err := parser.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 		// FR-027: Validate key ID is present and properly formatted
@@ -187,39 +192,14 @@ func Verify(tokenString string, config VerifyConfig, keyFunc JWKCallback) (*Veri
 		return nil, japikeyerrors.NewValidationError("token signature is invalid")
 	}
 
-	// Extract all claims from the token payload (including custom ones)
-	// The issuer is already validated as a string by gojwt through RegisteredClaims
-	mapClaims := jwt.MapClaims{}
-
-	// Decode the JWT payload to get all claims
-	parts := strings.Split(tokenString, ".")
-	if len(parts) != 3 {
-		return nil, japikeyerrors.NewValidationError("token is malformed")
-	}
-
-	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil {
-		return nil, japikeyerrors.NewValidationError("token is malformed")
-	}
-
-	if err := json.Unmarshal(payload, &mapClaims); err != nil {
-		return nil, japikeyerrors.NewValidationError("token is malformed")
-	}
-
-	// Ensure issuer from validated claims is used (gojwt ensures it's a string)
-	if claims.Issuer != "" {
-		mapClaims[IssuerClaim] = claims.Issuer
-	}
-
 	// Validate JAPIKey-specific requirements
-	// Issuer is already validated as a string by gojwt through RegisteredClaims
-	if err := validateJAPIKeyClaims(mapClaims, claims.Issuer, config.BaseIssuerURL, keyID); err != nil {
+	if err := validateJAPIKeyClaims(claims, config.BaseIssuerURL, keyID); err != nil {
 		return nil, err
 	}
 
 	// Return the validated claims (preserving all custom claims)
 	result := &VerificationResult{
-		Claims: mapClaims,
+		Claims: claims,
 		KeyID:  keyID,
 	}
 
@@ -249,14 +229,8 @@ func ShouldVerify(tokenString string, baseIssuer string) bool {
 		return false
 	}
 
-	// Extract issuer from claims using GetIssuer method
-	issuer, err := claims.GetIssuer()
-	if err != nil || issuer == "" {
-		return false
-	}
-
 	// Validate JAPIKey-specific requirements (version and issuer)
-	if err := validateJAPIKeyClaims(claims, issuer, baseIssuer, keyID); err != nil {
+	if err := validateJAPIKeyClaims(claims, baseIssuer, keyID); err != nil {
 		return false
 	}
 
