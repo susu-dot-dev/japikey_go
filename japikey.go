@@ -33,3 +33,30 @@ type JAPIKeyGenerationError = japikey.JAPIKeyGenerationError
 // JAPIKeySigningError is returned when JWT signing operations fail.
 // Examples include failure to sign the JWT with the private key.
 type JAPIKeySigningError = japikey.JAPIKeySigningError
+
+// VerifyConfig holds the configuration for verifying a JAPIKey.
+// It contains the required and optional parameters for API key verification.
+type VerifyConfig = japikey.VerifyConfig
+
+// JWKCallback is a function that retrieves the JWK (JSON Web Key) given the key ID.
+// This function is used during token verification to get the appropriate public key
+// for signature verification.
+type JWKCallback = japikey.JWKCallback
+
+// VerificationResult holds the result of a successful token verification.
+type VerificationResult = japikey.VerificationResult
+
+// JAPIKeyVerificationError represents an error that occurs during token verification.
+// It provides specific information about the type of validation that failed.
+type JAPIKeyVerificationError = japikey.JAPIKeyVerificationError
+
+// Verify takes in the JWT string, the config, as well as a callback function which retrieves the JWK if given the key id.
+// It either returns the validated claims, or an appropriate error.
+func Verify(tokenString string, config VerifyConfig, keyFunc JWKCallback) (*VerificationResult, error) {
+	return japikey.Verify(tokenString, config, keyFunc)
+}
+
+// ShouldVerify is a pre-validation function that checks if a token has the correct format before full verification.
+func ShouldVerify(tokenString string, baseIssuer string) bool {
+	return japikey.ShouldVerify(tokenString, baseIssuer)
+}

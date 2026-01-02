@@ -42,11 +42,11 @@ Initialize the project structure and configure dependencies.
 ### Goal
 Implement core types, constants, and error structures needed by all user stories.
 
-- [ ] T005 [P] Create types.go with Config struct definition
-- [ ] T006 [P] Create types.go with StructuredError struct definition
-- [ ] T007 Create constants.go with JAPIKey constants (algorithm, version prefix, etc.)
+- [x] T005 [P] Create types.go with Config struct definition
+- [x] T006 [P] Create types.go with StructuredError struct definition
+- [x] T007 Create constants.go with JAPIKey constants (algorithm, version prefix, etc.)
 - [ ] T008 [P] Create types.go with error type constants
-- [ ] T009 Implement basic StructuredError methods (Error() method for error interface)
+- [x] T009 Implement basic StructuredError methods (Error() method for error interface)
 
 ## Phase 3: User Story 1 - Verify JAPIKey Token (Priority: P1)
 
@@ -55,16 +55,16 @@ Implement core verification functionality to accept a token string and configura
 
 **Independent Test Criteria**: Can be fully tested by providing a valid JAPIKey token and verifying it returns the expected claims, or providing an invalid token and confirming it returns an appropriate error.
 
-- [ ] T010 [P] [US1] Create verify.go file with Verify function signature
-- [ ] T011 [P] [US1] Implement token decoding without verification in verify.go
-- [ ] T012 [P] [US1] Implement signature verification using JWT library in verify.go
-- [ ] T013 [US1] Implement basic verification flow: decode → validate → verify signature → return claims
-- [ ] T014 [US1] Connect configuration parameters to verification process
-- [ ] T015 [US1] Return validated claims when verification succeeds (FR-006)
-- [ ] T016 [US1] Return structured errors when verification fails (FR-007)
-- [ ] T017 [US1] Implement callback function for retrieving cryptographic keys (FR-001)
-- [ ] T018 [US1] Test acceptance scenario 1: valid token returns claims
-- [ ] T019 [US1] Test acceptance scenario 2: invalid signature returns error
+- [x] T010 [P] [US1] Create verify.go file with Verify function signature
+- [x] T011 [P] [US1] Implement token decoding without verification in verify.go
+- [x] T012 [P] [US1] Implement signature verification using JWT library in verify.go
+- [x] T013 [US1] Implement basic verification flow: decode → validate → verify signature → return claims
+- [x] T014 [US1] Connect configuration parameters to verification process
+- [x] T015 [US1] Return validated claims when verification succeeds (FR-006)
+- [x] T016 [US1] Return structured errors when verification fails (FR-007)
+- [x] T017 [US1] Implement callback function for retrieving cryptographic keys (FR-001)
+- [x] T018 [US1] Test acceptance scenario 1: valid token returns claims
+- [x] T019 [US1] Test acceptance scenario 2: invalid signature returns error
 
 ## Phase 4: User Story 2 - Handle Malformed JAPIKey Tokens (Priority: P1)
 
@@ -73,13 +73,13 @@ Implement validation to handle malformed tokens gracefully, preventing system er
 
 **Independent Test Criteria**: Can be tested by providing various malformed tokens (invalid format, missing fields, wrong version format) and confirming appropriate structured errors are returned.
 
-- [ ] T020 [P] [US2] Create validation.go with token structure validation functions
-- [ ] T021 [P] [US2] Implement JWT format validation (header.payload.signature) (FR-025)
-- [ ] T022 [P] [US2] Implement header validation (alg and kid fields) (FR-025)
-- [ ] T023 [P] [US2] Implement payload validation (ver and iss claims) (FR-025)
-- [ ] T024 [US2] Add structure validation to verification flow before signature verification (FR-009)
-- [ ] T025 [US2] Test acceptance scenario 1: invalid version format returns error
-- [ ] T026 [US2] Test acceptance scenario 2: mismatched key ID and issuer returns error
+- [x] T020 [P] [US2] Create validation.go with token structure validation functions
+- [x] T021 [P] [US2] Implement JWT format validation (header.payload.signature) (FR-025)
+- [x] T022 [P] [US2] Implement header validation (alg and kid fields) (FR-025)
+- [x] T023 [P] [US2] Implement payload validation (ver and iss claims) (FR-025)
+- [x] T024 [US2] Add structure validation to verification flow before signature verification (FR-009)
+- [x] T025 [US2] Test acceptance scenario 1: invalid version format returns error
+- [x] T026 [US2] Test acceptance scenario 2: mismatched key ID and issuer returns error
 - [ ] T027 [US2] Handle tokens with non-UTF8 characters (edge case)
 - [ ] T028 [US2] Handle tokens with unexpected nested structures (edge case) (FR-029)
 
@@ -90,11 +90,11 @@ Implement validation for all special JAPIKey constraints to ensure only properly
 
 **Independent Test Criteria**: Can be tested by providing tokens that violate specific JAPIKey constraints (e.g., version number too high, issuer format incorrect) and confirming appropriate errors are returned.
 
-- [ ] T029 [P] [US3] Implement version format validation (FR-002)
-- [ ] T030 [P] [US3] Implement version number validation (FR-008)
-- [ ] T031 [P] [US3] Implement issuer format validation (FR-003)
-- [ ] T032 [P] [US3] Implement key ID matching validation (FR-004)
-- [ ] T033 [US3] Add constraint validations to verification flow
+- [x] T029 [P] [US3] Implement version format validation (FR-002)
+- [x] T030 [P] [US3] Implement version number validation (FR-008)
+- [x] T031 [P] [US3] Implement issuer format validation (FR-003)
+- [x] T032 [P] [US3] Implement key ID matching validation (FR-004)
+- [x] T033 [US3] Add constraint validations to verification flow
 - [ ] T034 [US3] Test acceptance scenario 1: version exceeding maximum returns error
 - [ ] T035 [US3] Test acceptance scenario 2: issuer format incorrect returns error
 - [ ] T036 [US3] Handle tokens with invalid version format (edge case)
@@ -107,30 +107,30 @@ Implement comprehensive security validations to protect against all known token-
 
 **Independent Test Criteria**: Can be tested by providing tokens designed to exploit various attack vectors (timing attacks, injection, resource exhaustion) and confirming they are properly rejected.
 
-- [ ] T038 [P] [US4] Implement maximum token size validation (4KB limit) (FR-020)
-- [ ] T039 [P] [US4] Implement algorithm validation (RS256 only) (FR-010, FR-022)
-- [ ] T040 [P] [US4] Implement expiration validation (exp claim) (FR-016)
-- [ ] T041 [P] [US4] Implement not-before validation (nbf claim, if present) (FR-017)
-- [ ] T042 [P] [US4] Implement issued-at validation (iat claim, if present) (FR-018)
-- [ ] T043 [P] [US4] Implement type header validation (typ claim) (FR-023)
-- [ ] T044 [P] [US4] Implement input sanitization to prevent injection attacks (FR-026)
-- [ ] T045 [P] [US4] Implement constant-time comparison for security (FR-019)
-- [ ] T046 [US4] Add security validations to verification flow
-- [ ] T047 [US4] Test acceptance scenario 1: expired token returns error
-- [ ] T048 [US4] Test acceptance scenario 2: invalid algorithm returns error
-- [ ] T049 [US4] Test acceptance scenario 3: large token returns size error
-- [ ] T050 [US4] Handle tokens with excessively large numeric values (edge case) (FR-030)
-- [ ] T051 [US4] Implement proper error handling to prevent information leakage (FR-028)
+- [x] T038 [P] [US4] Implement maximum token size validation (4KB limit) (FR-020)
+- [x] T039 [P] [US4] Implement algorithm validation (RS256 only) (FR-010, FR-022)
+- [x] T040 [P] [US4] Implement expiration validation (exp claim) (FR-016)
+- [x] T041 [P] [US4] Implement not-before validation (nbf claim, if present) (FR-017)
+- [x] T042 [P] [US4] Implement issued-at validation (iat claim, if present) (FR-018)
+- [x] T043 [P] [US4] Implement type header validation (typ claim) (FR-023)
+- [x] T044 [P] [US4] Implement input sanitization to prevent injection attacks (FR-026)
+- [x] T045 [P] [US4] Implement constant-time comparison for security (FR-019)
+- [x] T046 [US4] Add security validations to verification flow
+- [x] T047 [US4] Test acceptance scenario 1: expired token returns error
+- [x] T048 [US4] Test acceptance scenario 2: invalid algorithm returns error
+- [x] T049 [US4] Test acceptance scenario 3: large token returns size error
+- [x] T050 [US4] Handle tokens with excessively large numeric values (edge case) (FR-030)
+- [x] T051 [US4] Implement proper error handling to prevent information leakage (FR-028)
 
 ## Phase 7: Pre-validation Function
 
 ### Goal
 Implement a function to pre-validate tokens before full verification for efficiency.
 
-- [ ] T052 Create pre-validation function signature in verify.go
-- [ ] T053 Implement basic format checks in pre-validation function (FR-011)
-- [ ] T054 Test pre-validation with valid and invalid tokens
-- [ ] T055 Integrate pre-validation into main verification flow
+- [x] T052 Create pre-validation function signature in verify.go
+- [x] T053 Implement basic format checks in pre-validation function (FR-011)
+- [x] T054 Test pre-validation with valid and invalid tokens
+- [x] T055 Integrate pre-validation into main verification flow
 
 ## Phase 8: Security Testing & Validation
 
