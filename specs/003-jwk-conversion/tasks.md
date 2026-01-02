@@ -137,16 +137,16 @@
 
 ### Tests for User Story 4
 
-- [ ] T050 [US4] Unit test for JAPIKey to JWKS conversion with valid inputs in japikey/sign_test.go
-- [ ] T051 [US4] Unit test for JAPIKey to JWKS conversion with invalid key ID in japikey/sign_test.go
-- [ ] T052 [US4] Unit test for JAPIKey to JWKS conversion with null public key in japikey/sign_test.go
-- [ ] T053 [US4] Unit test to validate generated JWKS format using jwx tool in japikey/sign_test.go
+- [x] T050 [US4] Unit test for JAPIKey to JWKS conversion with valid inputs in japikey/sign_test.go
+- [x] T051 [US4] Unit test for JAPIKey to JWKS conversion with invalid key ID in japikey/sign_test.go
+- [x] T052 [US4] Unit test for JAPIKey to JWKS conversion with null public key in japikey/sign_test.go
+- [x] T053 [US4] Unit test to validate generated JWKS format using jwx tool in japikey/sign_test.go
 
 ### Implementation for User Story 4
 
-- [ ] T054 [US4] Implement ToJWKS helper method on JAPIKey struct in japikey/sign.go (FR-035)
-- [ ] T055 [US4] Add validation that JAPIKey contains valid UUID key ID before conversion in japikey/sign.go (FR-036)
-- [ ] T056 [US4] Add validation that JAPIKey contains valid RSA public key before conversion in japikey/sign.go (FR-037)
+- [x] T054 [US4] Implement ToJWKS helper method on JAPIKey struct in japikey/sign.go (FR-035)
+- [x] T055 [US4] Add validation that JAPIKey contains valid UUID key ID before conversion in japikey/sign.go (FR-036)
+- [x] T056 [US4] Add validation that JAPIKey contains valid RSA public key before conversion in japikey/sign.go (FR-037)
 
 **Checkpoint**: All user stories should now be independently functional
 
@@ -156,15 +156,15 @@
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] T057 Documentation updates in docs/ ensuring Developer Ease of Use with comprehensive examples
-- [ ] T058 Code cleanup and refactoring to maintain library-first architecture
+- [x] T057 Documentation updates in docs/ ensuring Developer Ease of Use with comprehensive examples
+- [x] T058 Code cleanup and refactoring to maintain library-first architecture
 - [ ] T059 Performance optimization across all stories
 - [ ] T060 Additional security-focused unit tests in tests/unit/
 - [ ] T061 Security hardening per Security-First Testing principle
-- [ ] T062 Run quickstart.md validation to ensure Developer Ease of Use
-- [ ] T063 Verify all features meet Library-First Architecture requirements
-- [ ] T064 Create example usage file in example/jwks_example.go
-- [ ] T065 Generate test JWKS file for verification in example/jwks.json
+- [x] T062 Run quickstart.md validation to ensure Developer Ease of Use
+- [x] T063 Verify all features meet Library-First Architecture requirements
+- [x] T064 Create example usage file in example/jwks_example.go
+- [x] T065 Generate test JWKS file for verification in example/jwks.json
 
 ---
 

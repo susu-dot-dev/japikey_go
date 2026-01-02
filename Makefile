@@ -46,8 +46,9 @@ run-jwx: build-jwx
 .PHONY: test
 test: build-jwx
 	$(GOTEST) -v ./...
-	@echo "Running example to ensure it works..."
+	@echo "Running examples to ensure they work..."
 	cd example && go run main.go
+	cd example && go run jwks_example.go
 
 ## Run tests including jwx tool
 .PHONY: test-with-jwx
@@ -58,8 +59,9 @@ test-with-jwx: build-jwx test
 ## Run examples
 .PHONY: examples
 examples:
-	@echo "Running example to ensure it works..."
+	@echo "Running examples to ensure they work..."
 	cd example && go run main.go
+	cd example && go run jwks_example.go
 
 ## Run tests with coverage
 .PHONY: test-coverage

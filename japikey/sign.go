@@ -26,6 +26,14 @@ type JAPIKey struct {
 }
 
 func (j *JAPIKey) ToJWKS() (*jwks.JWKS, error) {
+	if j.KeyID == uuid.Nil {
+		return nil, errors.NewValidationError("key ID cannot be empty")
+	}
+
+	if j.PublicKey == nil {
+		return nil, errors.NewValidationError("RSA public key cannot be nil")
+	}
+
 	return jwks.NewJWKS(j.PublicKey, j.KeyID)
 }
 

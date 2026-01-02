@@ -1,7 +1,10 @@
 package japikey
 
 import (
+	"encoding/json"
 	"fmt"
+	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
@@ -771,5 +774,194 @@ func TestUserClaimsCannotOverrideConfigClaims(t *testing.T) {
 		}
 	} else {
 		t.Error("Could not parse claims from JWT")
+	}
+}
+
+func TestJAPIKey_ToJWKS_WithValidInputs_ReturnsValidJWKS(t *testing.T) {
+	// Arrange
+	config := Config{
+		Subject:   "test-user",
+		Issuer:    "https://example.com",
+		Audience:  "test-audience",
+		ExpiresAt: time.Now().Add(1 * time.Hour),
+	}
+
+	japikey, err := NewJAPIKey(config)
+	if err != nil {
+		t.Fatalf("Failed to create JAPIKey: %v", err)
+	}
+
+	// Act
+	jwks, err := japikey.ToJWKS()
+
+	// Assert
+	if err != nil {
+		t.Fatalf("Expected no error, but got: %v", err)
+	}
+
+	if jwks == nil {
+		t.Fatal("Expected JWKS to not be nil")
+	}
+
+	// Verify that the key ID matches
+	retrievedKeyID := jwks.GetKeyID()
+	if retrievedKeyID != japikey.KeyID {
+		t.Errorf("Expected key ID to be '%s', got '%s'", japikey.KeyID, retrievedKeyID)
+	}
+
+	// Verify that the public key matches
+	retrievedPublicKey, err := jwks.GetPublicKey(japikey.KeyID)
+	if err != nil {
+		t.Fatalf("Failed to retrieve public key from JWKS: %v", err)
+	}
+
+	if retrievedPublicKey.N.Cmp(japikey.PublicKey.N) != 0 {
+		t.Error("Expected modulus to match original public key")
+	}
+
+	if retrievedPublicKey.E != japikey.PublicKey.E {
+		t.Errorf("Expected exponent to match original public key, got %d, expected %d", retrievedPublicKey.E, japikey.PublicKey.E)
+	}
+}
+
+func TestJAPIKey_ToJWKS_WithInvalidKeyID_ReturnsValidationError(t *testing.T) {
+	// Arrange
+	config := Config{
+		Subject:   "test-user",
+		Issuer:    "https://example.com",
+		Audience:  "test-audience",
+		ExpiresAt: time.Now().Add(1 * time.Hour),
+	}
+
+	japikey, err := NewJAPIKey(config)
+	if err != nil {
+		t.Fatalf("Failed to create JAPIKey: %v", err)
+	}
+
+	// Set invalid key ID (uuid.Nil)
+	japikey.KeyID = uuid.Nil
+
+	// Act
+	jwks, err := japikey.ToJWKS()
+
+	// Assert
+	if err == nil {
+		t.Error("Expected error for invalid key ID, but got none")
+	}
+
+	if jwks != nil {
+		t.Error("Expected JWKS to be nil for invalid key ID")
+	}
+
+	// Verify it's a ValidationError
+	if _, ok := err.(*errors.ValidationError); !ok {
+		t.Errorf("Expected ValidationError, but got: %T", err)
+	}
+}
+
+func TestJAPIKey_ToJWKS_WithNullPublicKey_ReturnsValidationError(t *testing.T) {
+	// Arrange
+	config := Config{
+		Subject:   "test-user",
+		Issuer:    "https://example.com",
+		Audience:  "test-audience",
+		ExpiresAt: time.Now().Add(1 * time.Hour),
+	}
+
+	japikey, err := NewJAPIKey(config)
+	if err != nil {
+		t.Fatalf("Failed to create JAPIKey: %v", err)
+	}
+
+	// Set null public key
+	japikey.PublicKey = nil
+
+	// Act
+	jwks, err := japikey.ToJWKS()
+
+	// Assert
+	if err == nil {
+		t.Error("Expected error for null public key, but got none")
+	}
+
+	if jwks != nil {
+		t.Error("Expected JWKS to be nil for null public key")
+	}
+
+	// Verify it's a ValidationError
+	if _, ok := err.(*errors.ValidationError); !ok {
+		t.Errorf("Expected ValidationError, but got: %T", err)
+	}
+}
+
+func TestJAPIKey_ToJWKS_ValidateAgainstJWXTool(t *testing.T) {
+	// Arrange
+	config := Config{
+		Subject:   "test-user",
+		Issuer:    "https://example.com",
+		Audience:  "test-audience",
+		ExpiresAt: time.Now().Add(1 * time.Hour),
+	}
+
+	japikey, err := NewJAPIKey(config)
+	if err != nil {
+		t.Fatalf("Failed to create JAPIKey: %v", err)
+	}
+
+	// Act: Convert to JWKS
+	jwks, err := japikey.ToJWKS()
+	if err != nil {
+		t.Fatalf("Failed to convert JAPIKey to JWKS: %v", err)
+	}
+
+	// Serialize to JSON
+	jsonBytes, err := json.Marshal(jwks)
+	if err != nil {
+		t.Fatalf("Failed to serialize JWKS: %v", err)
+	}
+
+	// The jwx tool's parse command expects a single JWK, not a JWKS
+	// So we need to extract the single JWK from our JWKS to test with the tool
+	var jwksStruct map[string]interface{}
+	if err := json.Unmarshal(jsonBytes, &jwksStruct); err != nil {
+		t.Fatalf("Failed to unmarshal JWKS for testing: %v", err)
+	}
+
+	keys, ok := jwksStruct["keys"].([]interface{})
+	if !ok || len(keys) != 1 {
+		t.Fatalf("Expected JWKS to contain exactly one key, got %d", len(keys))
+	}
+
+	singleJWK := keys[0]
+	jwkBytes, err := json.Marshal(singleJWK)
+	if err != nil {
+		t.Fatalf("Failed to marshal single JWK: %v", err)
+	}
+
+	// Use the jwx tool to parse this single JWK and verify it's valid
+	// This command should parse the JWK and output the public key as base64
+	cmd := exec.Command("bash", "-c", fmt.Sprintf("cd ../jwx/tool && echo '%s' | go run . parse", string(jwkBytes)))
+	output, err := cmd.CombinedOutput()
+
+	// If the jwx tool is not available or fails, we should skip this test
+	if err != nil {
+		// Check if the error is due to the jwx tool not being available
+		if strings.Contains(string(output), "command not found") ||
+			strings.Contains(string(output), "cannot find") ||
+			strings.Contains(err.Error(), "executable file not found") ||
+			strings.Contains(string(output), "No such file or directory") {
+			t.Skip("jwx tool not available, skipping validation test")
+		}
+
+		// If it's a different error, check if it's just the parsing that failed
+		// but the tool exists
+		t.Logf("jwx tool output: %s, error: %v", string(output), err)
+		t.Error("JWK format is not compatible with jwx tool")
+		return
+	}
+
+	// If the command succeeded, the JWK format is valid according to the jwx tool
+	if len(output) == 0 {
+		t.Error("jwx tool returned empty output for valid JWK")
 	}
 }
