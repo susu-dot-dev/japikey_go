@@ -1,7 +1,5 @@
 package japikey
 
-import "time"
-
 // JAPIKey constants
 const (
 	// AlgorithmRS256 is the required algorithm for JAPIKey tokens
@@ -13,9 +11,6 @@ const (
 	// MaxTokenSize is the maximum allowed token size to prevent resource exhaustion (4KB)
 	MaxTokenSize = 4096
 	
-	// DefaultTimeout is the default timeout for retrieving cryptographic keys
-	DefaultTimeout = 5 * time.Second
-	
 	// MaxVersion is the maximum allowed version number
 	MaxVersion = 1
 	
@@ -24,12 +19,6 @@ const (
 	
 	// IssuerClaim is the JWT claim key for the issuer
 	IssuerClaim = "iss"
-	
-	// SubjectClaim is the JWT claim key for the subject
-	SubjectClaim = "sub"
-	
-	// AudienceClaim is the JWT claim key for the audience
-	AudienceClaim = "aud"
 	
 	// ExpirationClaim is the JWT claim key for the expiration time
 	ExpirationClaim = "exp"
