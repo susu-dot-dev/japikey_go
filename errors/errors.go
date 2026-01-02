@@ -63,3 +63,18 @@ func NewInternalError(message string) *InternalError {
 	}
 }
 
+
+// TokenExpiredError is kept separate because clients may need different behavior
+// (e.g., refresh token, redirect to login)
+type TokenExpiredError struct {
+	JapikeyError
+}
+
+func NewTokenExpiredError(message string) *TokenExpiredError {
+	return &TokenExpiredError{
+		JapikeyError: JapikeyError{
+			Code:    "TokenExpiredError",
+			Message: message,
+		},
+	}
+}

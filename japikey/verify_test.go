@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -173,8 +174,8 @@ func TestVerifyExpiredToken(t *testing.T) {
 	}
 
 	// Check that it's the right type of error
-	if _, ok := err.(*errors.ValidationError); !ok {
-		t.Errorf("Expected ValidationError, got %T", err)
+	if _, ok := err.(*errors.TokenExpiredError); !ok {
+		t.Errorf("Expected TokenExpiredError, got %T", err)
 	}
 }
 
@@ -411,6 +412,36 @@ func TestShouldVerifyEmptyBaseIssuer(t *testing.T) {
 	}
 }
 
+func TestVerifyEmptyBaseIssuerReturnsInternalError(t *testing.T) {
+	// Verify requires baseIssuer - empty baseIssuer should return InternalError
+	// because this is a server configuration issue, not a token validation issue
+	tokenString, pubKey, _, err := createValidToken()
+	if err != nil {
+		t.Fatalf("Failed to create valid token: %v", err)
+	}
+
+	// Create config with empty BaseIssuerURL
+	config := VerifyConfig{
+		BaseIssuerURL: "",
+		Timeout:       5 * time.Second,
+	}
+
+	// Verify the token
+	result, err := Verify(tokenString, config, mockKeyFunc(pubKey))
+	if err == nil {
+		t.Error("Expected error for empty BaseIssuerURL, got none")
+	}
+
+	if result != nil {
+		t.Error("Expected result to be nil for empty BaseIssuerURL")
+	}
+
+	// Check that it's an InternalError, not a ValidationError
+	if _, ok := err.(*errors.InternalError); !ok {
+		t.Errorf("Expected InternalError, got %T", err)
+	}
+}
+
 func TestVerifyPreservesCustomClaims(t *testing.T) {
 	// Create a token manually with custom claims to ensure issuer matches keyID
 	keyID := uuid.MustParse("123e4567-e89b-12d3-a456-426614174000")
@@ -420,11 +451,11 @@ func TestVerifyPreservesCustomClaims(t *testing.T) {
 	}
 
 	claims := jwt.MapClaims{
-		"sub": "test-user",
-		"iss": fmt.Sprintf("https://example.com/%s", keyID.String()),
-		"aud": "test-audience",
-		"exp": time.Now().Add(1 * time.Hour).Unix(),
-		"ver": "japikey-v1",
+		"sub":   "test-user",
+		"iss":   fmt.Sprintf("https://example.com/%s", keyID.String()),
+		"aud":   "test-audience",
+		"exp":   time.Now().Add(1 * time.Hour).Unix(),
+		"ver":   "japikey-v1",
 		"hello": "world",
 		"foo":   "bar",
 		"nested": map[string]interface{}{
@@ -481,5 +512,753 @@ func TestVerifyPreservesCustomClaims(t *testing.T) {
 
 	if result.Claims["ver"] != "japikey-v1" {
 		t.Errorf("Expected 'ver' to be 'japikey-v1', got %v", result.Claims["ver"])
+	}
+}
+
+// createTokenWithIssuer creates a token with a specific issuer for testing
+func createTokenWithIssuer(issuer string, keyID uuid.UUID) (string, *rsa.PublicKey, error) {
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return "", nil, err
+	}
+
+	claims := jwt.MapClaims{
+		"sub": "test-user",
+		"iss": issuer,
+		"aud": "test-audience",
+		"exp": time.Now().Add(1 * time.Hour).Unix(),
+		"ver": "japikey-v1",
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	token.Header["kid"] = keyID.String()
+	tokenString, err := token.SignedString(privateKey)
+	if err != nil {
+		return "", nil, err
+	}
+
+	return tokenString, &privateKey.PublicKey, nil
+}
+
+func TestVerifyIssuerPathTraversal(t *testing.T) {
+	// Test path traversal attacks
+	keyID := uuid.MustParse("123e4567-e89b-12d3-a456-426614174000")
+	testCases := []struct {
+		name    string
+		issuer  string
+		baseURL string
+	}{
+		{
+			name:    "path traversal with ../",
+			issuer:  "https://example.com/../evil.com/123e4567-e89b-12d3-a456-426614174000",
+			baseURL: "https://example.com/",
+		},
+		{
+			name:    "path traversal with ..",
+			issuer:  "https://example.com/..//evil.com/123e4567-e89b-12d3-a456-426614174000",
+			baseURL: "https://example.com/",
+		},
+		{
+			name:    "path traversal with multiple ../",
+			issuer:  "https://example.com/../../evil.com/123e4567-e89b-12d3-a456-426614174000",
+			baseURL: "https://example.com/",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tokenString, pubKey, err := createTokenWithIssuer(tc.issuer, keyID)
+			if err != nil {
+				t.Fatalf("Failed to create token: %v", err)
+			}
+
+			config := VerifyConfig{
+				BaseIssuerURL: tc.baseURL,
+				Timeout:       5 * time.Second,
+			}
+
+			result, err := Verify(tokenString, config, mockKeyFunc(pubKey))
+			if err == nil {
+				t.Error("Expected error for path traversal attack, got none")
+			}
+			if result != nil {
+				t.Error("Expected result to be nil for path traversal attack")
+			}
+			if _, ok := err.(*errors.ValidationError); !ok {
+				t.Errorf("Expected ValidationError, got %T", err)
+			}
+		})
+	}
+}
+
+func TestVerifyIssuerURLEncoding(t *testing.T) {
+	// Test URL encoding attacks
+	keyID := uuid.MustParse("123e4567-e89b-12d3-a456-426614174000")
+	testCases := []struct {
+		name    string
+		issuer  string
+		baseURL string
+	}{
+		{
+			name:    "URL encoded slash",
+			issuer:  "https://example.com%2Fevil.com/123e4567-e89b-12d3-a456-426614174000",
+			baseURL: "https://example.com/",
+		},
+		{
+			name:    "URL encoded double slash",
+			issuer:  "https://example.com%2F%2Fevil.com/123e4567-e89b-12d3-a456-426614174000",
+			baseURL: "https://example.com/",
+		},
+		{
+			name:    "URL encoded path traversal",
+			issuer:  "https://example.com%2F..%2Fevil.com/123e4567-e89b-12d3-a456-426614174000",
+			baseURL: "https://example.com/",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tokenString, pubKey, err := createTokenWithIssuer(tc.issuer, keyID)
+			if err != nil {
+				t.Fatalf("Failed to create token: %v", err)
+			}
+
+			config := VerifyConfig{
+				BaseIssuerURL: tc.baseURL,
+				Timeout:       5 * time.Second,
+			}
+
+			result, err := Verify(tokenString, config, mockKeyFunc(pubKey))
+			if err == nil {
+				t.Error("Expected error for URL encoding attack, got none")
+			}
+			if result != nil {
+				t.Error("Expected result to be nil for URL encoding attack")
+			}
+		})
+	}
+}
+
+func TestVerifyIssuerCaseSensitivity(t *testing.T) {
+	// Test case sensitivity - issuer should match baseIssuer exactly (case-sensitive)
+	keyID := uuid.MustParse("123e4567-e89b-12d3-a456-426614174000")
+	testCases := []struct {
+		name       string
+		issuer     string
+		baseURL    string
+		shouldPass bool
+	}{
+		{
+			name:       "uppercase scheme",
+			issuer:     "HTTPS://example.com/123e4567-e89b-12d3-a456-426614174000",
+			baseURL:    "https://example.com/",
+			shouldPass: false,
+		},
+		{
+			name:       "uppercase domain",
+			issuer:     "https://EXAMPLE.COM/123e4567-e89b-12d3-a456-426614174000",
+			baseURL:    "https://example.com/",
+			shouldPass: false,
+		},
+		{
+			name:       "mixed case",
+			issuer:     "https://ExAmPlE.CoM/123e4567-e89b-12d3-a456-426614174000",
+			baseURL:    "https://example.com/",
+			shouldPass: false,
+		},
+		{
+			name:       "correct case",
+			issuer:     "https://example.com/123e4567-e89b-12d3-a456-426614174000",
+			baseURL:    "https://example.com/",
+			shouldPass: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tokenString, pubKey, err := createTokenWithIssuer(tc.issuer, keyID)
+			if err != nil {
+				t.Fatalf("Failed to create token: %v", err)
+			}
+
+			config := VerifyConfig{
+				BaseIssuerURL: tc.baseURL,
+				Timeout:       5 * time.Second,
+			}
+
+			result, err := Verify(tokenString, config, mockKeyFunc(pubKey))
+			if tc.shouldPass {
+				if err != nil {
+					t.Errorf("Expected no error for valid issuer, got: %v", err)
+				}
+				if result == nil {
+					t.Error("Expected result to not be nil for valid issuer")
+				}
+			} else {
+				if err == nil {
+					t.Error("Expected error for case mismatch, got none")
+				}
+				if result != nil {
+					t.Error("Expected result to be nil for case mismatch")
+				}
+			}
+		})
+	}
+}
+
+func TestVerifyIssuerTrailingSlashes(t *testing.T) {
+	// Test trailing slash handling
+	keyID := uuid.MustParse("123e4567-e89b-12d3-a456-426614174000")
+	testCases := []struct {
+		name       string
+		issuer     string
+		baseURL    string
+		shouldPass bool
+	}{
+		{
+			name:       "baseURL without trailing slash, issuer without trailing slash",
+			issuer:     "https://example.com/123e4567-e89b-12d3-a456-426614174000",
+			baseURL:    "https://example.com",
+			shouldPass: true,
+		},
+		{
+			name:       "baseURL with trailing slash, issuer without trailing slash",
+			issuer:     "https://example.com/123e4567-e89b-12d3-a456-426614174000",
+			baseURL:    "https://example.com/",
+			shouldPass: true,
+		},
+		{
+			name:       "issuer with double slash",
+			issuer:     "https://example.com//123e4567-e89b-12d3-a456-426614174000",
+			baseURL:    "https://example.com/",
+			shouldPass: false, // Should fail - double slash means extra path component, must be exactly baseIssuer/uuid
+		},
+		{
+			name:       "issuer with trailing slash after UUID",
+			issuer:     "https://example.com/123e4567-e89b-12d3-a456-426614174000/",
+			baseURL:    "https://example.com/",
+			shouldPass: false, // UUID parsing should fail on empty string
+		},
+		{
+			name:       "issuer with multiple trailing slashes",
+			issuer:     "https://example.com/123e4567-e89b-12d3-a456-426614174000///",
+			baseURL:    "https://example.com/",
+			shouldPass: false, // UUID parsing should fail on empty string
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tokenString, pubKey, err := createTokenWithIssuer(tc.issuer, keyID)
+			if err != nil {
+				t.Fatalf("Failed to create token: %v", err)
+			}
+
+			config := VerifyConfig{
+				BaseIssuerURL: tc.baseURL,
+				Timeout:       5 * time.Second,
+			}
+
+			result, err := Verify(tokenString, config, mockKeyFunc(pubKey))
+			if tc.shouldPass {
+				if err != nil {
+					t.Errorf("Expected no error, got: %v", err)
+				}
+				if result == nil {
+					t.Error("Expected result to not be nil")
+				}
+			} else {
+				if err == nil {
+					t.Error("Expected error, got none")
+				}
+				if result != nil {
+					t.Error("Expected result to be nil")
+				}
+			}
+		})
+	}
+}
+
+func TestVerifyIssuerPathComponents(t *testing.T) {
+	// Test issuer with path components
+	keyID := uuid.MustParse("123e4567-e89b-12d3-a456-426614174000")
+	testCases := []struct {
+		name       string
+		issuer     string
+		baseURL    string
+		shouldPass bool
+	}{
+		{
+			name:       "baseURL with path, issuer with matching path",
+			issuer:     "https://example.com/api/v1/123e4567-e89b-12d3-a456-426614174000",
+			baseURL:    "https://example.com/api/v1/",
+			shouldPass: true,
+		},
+		{
+			name:       "baseURL with path, issuer without matching path",
+			issuer:     "https://example.com/123e4567-e89b-12d3-a456-426614174000",
+			baseURL:    "https://example.com/api/v1/",
+			shouldPass: false,
+		},
+		{
+			name:       "baseURL without path, issuer with extra path",
+			issuer:     "https://example.com/path/to/resource/123e4567-e89b-12d3-a456-426614174000",
+			baseURL:    "https://example.com/",
+			shouldPass: false, // Should fail - extra path components not allowed, must be exactly baseIssuer/uuid
+		},
+		{
+			name:       "baseURL with path, issuer with extra path",
+			issuer:     "https://example.com/api/v1/extra/path/123e4567-e89b-12d3-a456-426614174000",
+			baseURL:    "https://example.com/api/v1/",
+			shouldPass: false, // Should fail - extra path components not allowed, must be exactly baseIssuer/uuid
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tokenString, pubKey, err := createTokenWithIssuer(tc.issuer, keyID)
+			if err != nil {
+				t.Fatalf("Failed to create token: %v", err)
+			}
+
+			config := VerifyConfig{
+				BaseIssuerURL: tc.baseURL,
+				Timeout:       5 * time.Second,
+			}
+
+			result, err := Verify(tokenString, config, mockKeyFunc(pubKey))
+			if tc.shouldPass {
+				if err != nil {
+					t.Errorf("Expected no error, got: %v", err)
+				}
+				if result == nil {
+					t.Error("Expected result to not be nil")
+				}
+			} else {
+				if err == nil {
+					t.Error("Expected error, got none")
+				}
+				if result != nil {
+					t.Error("Expected result to be nil")
+				}
+			}
+		})
+	}
+}
+
+func TestVerifyIssuerMissingOrInvalidUUID(t *testing.T) {
+	// Test issuer with missing or invalid UUID
+	keyID := uuid.MustParse("123e4567-e89b-12d3-a456-426614174000")
+	testCases := []struct {
+		name    string
+		issuer  string
+		baseURL string
+	}{
+		{
+			name:    "issuer with no UUID",
+			issuer:  "https://example.com/",
+			baseURL: "https://example.com/",
+		},
+		{
+			name:    "issuer with empty UUID",
+			issuer:  "https://example.com/",
+			baseURL: "https://example.com/",
+		},
+		{
+			name:    "issuer with invalid UUID format",
+			issuer:  "https://example.com/not-a-uuid",
+			baseURL: "https://example.com/",
+		},
+		{
+			name:    "issuer with malformed UUID",
+			issuer:  "https://example.com/123e4567-e89b-12d3-a456",
+			baseURL: "https://example.com/",
+		},
+		{
+			name:    "issuer with UUID in middle",
+			issuer:  "https://example.com/123e4567-e89b-12d3-a456-426614174000/extra",
+			baseURL: "https://example.com/",
+		},
+		{
+			name:    "issuer with multiple UUIDs",
+			issuer:  "https://example.com/123e4567-e89b-12d3-a456-426614174000/987e6543-e21b-34d5-b789-123456789012",
+			baseURL: "https://example.com/",
+		},
+		{
+			name:    "issuer with non-UUID at end",
+			issuer:  "https://example.com/path/not-a-uuid",
+			baseURL: "https://example.com/",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tokenString, pubKey, err := createTokenWithIssuer(tc.issuer, keyID)
+			if err != nil {
+				t.Fatalf("Failed to create token: %v", err)
+			}
+
+			config := VerifyConfig{
+				BaseIssuerURL: tc.baseURL,
+				Timeout:       5 * time.Second,
+			}
+
+			result, err := Verify(tokenString, config, mockKeyFunc(pubKey))
+			if err == nil {
+				t.Error("Expected error for invalid UUID, got none")
+			}
+			if result != nil {
+				t.Error("Expected result to be nil for invalid UUID")
+			}
+			if _, ok := err.(*errors.ValidationError); !ok {
+				t.Errorf("Expected ValidationError, got %T", err)
+			}
+		})
+	}
+}
+
+func TestVerifyIssuerQueryParamsAndFragments(t *testing.T) {
+	// Test issuer with query parameters or fragments
+	keyID := uuid.MustParse("123e4567-e89b-12d3-a456-426614174000")
+	testCases := []struct {
+		name       string
+		issuer     string
+		baseURL    string
+		shouldPass bool
+	}{
+		{
+			name:       "issuer with query params",
+			issuer:     "https://example.com/123e4567-e89b-12d3-a456-426614174000?param=value",
+			baseURL:    "https://example.com/",
+			shouldPass: false, // UUID parsing should fail on string with query params
+		},
+		{
+			name:       "issuer with fragment",
+			issuer:     "https://example.com/123e4567-e89b-12d3-a456-426614174000#fragment",
+			baseURL:    "https://example.com/",
+			shouldPass: false, // UUID parsing should fail on string with fragment
+		},
+		{
+			name:       "baseURL with query params",
+			issuer:     "https://example.com/123e4567-e89b-12d3-a456-426614174000",
+			baseURL:    "https://example.com/?param=value",
+			shouldPass: false, // Issuer doesn't start with baseURL
+		},
+		{
+			name:       "baseURL with fragment",
+			issuer:     "https://example.com/123e4567-e89b-12d3-a456-426614174000",
+			baseURL:    "https://example.com/#fragment",
+			shouldPass: false, // Issuer doesn't start with baseURL
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tokenString, pubKey, err := createTokenWithIssuer(tc.issuer, keyID)
+			if err != nil {
+				t.Fatalf("Failed to create token: %v", err)
+			}
+
+			config := VerifyConfig{
+				BaseIssuerURL: tc.baseURL,
+				Timeout:       5 * time.Second,
+			}
+
+			result, err := Verify(tokenString, config, mockKeyFunc(pubKey))
+			if tc.shouldPass {
+				if err != nil {
+					t.Errorf("Expected no error, got: %v", err)
+				}
+				if result == nil {
+					t.Error("Expected result to not be nil")
+				}
+			} else {
+				if err == nil {
+					t.Error("Expected error, got none")
+				}
+				if result != nil {
+					t.Error("Expected result to be nil")
+				}
+			}
+		})
+	}
+}
+
+func TestVerifyIssuerVeryLongString(t *testing.T) {
+	// Test issuer with very long string
+	keyID := uuid.MustParse("123e4567-e89b-12d3-a456-426614174000")
+	longPath := strings.Repeat("a", 1000)
+	issuer := fmt.Sprintf("https://example.com/%s/123e4567-e89b-12d3-a456-426614174000", longPath)
+
+	tokenString, pubKey, err := createTokenWithIssuer(issuer, keyID)
+	if err != nil {
+		t.Fatalf("Failed to create token: %v", err)
+	}
+
+	config := VerifyConfig{
+		BaseIssuerURL: "https://example.com/",
+		Timeout:       5 * time.Second,
+	}
+
+	result, err := Verify(tokenString, config, mockKeyFunc(pubKey))
+	// Should fail - extra path components not allowed, must be exactly baseIssuer/uuid
+	if err == nil {
+		t.Error("Expected error for issuer with extra path components, got none")
+	}
+	if result != nil {
+		t.Error("Expected result to be nil for issuer with extra path components")
+	}
+}
+
+func TestVerifyIssuerControlCharacters(t *testing.T) {
+	// Test issuer with control characters
+	keyID := uuid.MustParse("123e4567-e89b-12d3-a456-426614174000")
+	testCases := []struct {
+		name    string
+		issuer  string
+		baseURL string
+	}{
+		{
+			name:    "issuer with newline",
+			issuer:  "https://example.com/\n123e4567-e89b-12d3-a456-426614174000",
+			baseURL: "https://example.com/",
+		},
+		{
+			name:    "issuer with tab",
+			issuer:  "https://example.com/\t123e4567-e89b-12d3-a456-426614174000",
+			baseURL: "https://example.com/",
+		},
+		{
+			name:    "issuer with null byte",
+			issuer:  "https://example.com/\x00123e4567-e89b-12d3-a456-426614174000",
+			baseURL: "https://example.com/",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tokenString, pubKey, err := createTokenWithIssuer(tc.issuer, keyID)
+			if err != nil {
+				t.Fatalf("Failed to create token: %v", err)
+			}
+
+			config := VerifyConfig{
+				BaseIssuerURL: tc.baseURL,
+				Timeout:       5 * time.Second,
+			}
+
+			result, err := Verify(tokenString, config, mockKeyFunc(pubKey))
+			// Control characters in issuer should cause validation to fail
+			if err == nil {
+				t.Error("Expected error for issuer with control characters, got none")
+			}
+			if result != nil {
+				t.Error("Expected result to be nil for issuer with control characters")
+			}
+		})
+	}
+}
+
+func TestVerifyIssuerSubdomainAttack(t *testing.T) {
+	// Test subdomain attacks
+	keyID := uuid.MustParse("123e4567-e89b-12d3-a456-426614174000")
+	testCases := []struct {
+		name    string
+		issuer  string
+		baseURL string
+	}{
+		{
+			name:    "subdomain attack",
+			issuer:  "https://evil.example.com/123e4567-e89b-12d3-a456-426614174000",
+			baseURL: "https://example.com/",
+		},
+		{
+			name:    "subdomain with path",
+			issuer:  "https://evil.example.com/path/123e4567-e89b-12d3-a456-426614174000",
+			baseURL: "https://example.com/",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tokenString, pubKey, err := createTokenWithIssuer(tc.issuer, keyID)
+			if err != nil {
+				t.Fatalf("Failed to create token: %v", err)
+			}
+
+			config := VerifyConfig{
+				BaseIssuerURL: tc.baseURL,
+				Timeout:       5 * time.Second,
+			}
+
+			result, err := Verify(tokenString, config, mockKeyFunc(pubKey))
+			if err == nil {
+				t.Error("Expected error for subdomain attack, got none")
+			}
+			if result != nil {
+				t.Error("Expected result to be nil for subdomain attack")
+			}
+		})
+	}
+}
+
+func TestVerifyIssuerPrefixAttack(t *testing.T) {
+	// Test prefix attacks - issuer that starts with baseIssuer but has malicious content
+	keyID := uuid.MustParse("123e4567-e89b-12d3-a456-426614174000")
+	testCases := []struct {
+		name       string
+		issuer     string
+		baseURL    string
+		shouldPass bool
+	}{
+		{
+			name:       "issuer with extra domain after base",
+			issuer:     "https://example.com.evil.com/123e4567-e89b-12d3-a456-426614174000",
+			baseURL:    "https://example.com/",
+			shouldPass: false, // Should fail prefix check
+		},
+		{
+			name:       "issuer that is prefix of base",
+			issuer:     "https://example.co/123e4567-e89b-12d3-a456-426614174000",
+			baseURL:    "https://example.com/",
+			shouldPass: false, // Should fail prefix check
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tokenString, pubKey, err := createTokenWithIssuer(tc.issuer, keyID)
+			if err != nil {
+				t.Fatalf("Failed to create token: %v", err)
+			}
+
+			config := VerifyConfig{
+				BaseIssuerURL: tc.baseURL,
+				Timeout:       5 * time.Second,
+			}
+
+			result, err := Verify(tokenString, config, mockKeyFunc(pubKey))
+			if tc.shouldPass {
+				if err != nil {
+					t.Errorf("Expected no error, got: %v", err)
+				}
+				if result == nil {
+					t.Error("Expected result to not be nil")
+				}
+			} else {
+				if err == nil {
+					t.Error("Expected error, got none")
+				}
+				if result != nil {
+					t.Error("Expected result to be nil")
+				}
+			}
+		})
+	}
+}
+
+func TestVerifyIssuerMissingClaim(t *testing.T) {
+	// Test missing issuer claim
+	keyID := uuid.MustParse("123e4567-e89b-12d3-a456-426614174000")
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("Failed to generate key: %v", err)
+	}
+
+	claims := jwt.MapClaims{
+		"sub": "test-user",
+		// Missing "iss" claim
+		"aud": "test-audience",
+		"exp": time.Now().Add(1 * time.Hour).Unix(),
+		"ver": "japikey-v1",
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	token.Header["kid"] = keyID.String()
+	tokenString, err := token.SignedString(privateKey)
+	if err != nil {
+		t.Fatalf("Failed to sign token: %v", err)
+	}
+
+	config := VerifyConfig{
+		BaseIssuerURL: "https://example.com/",
+		Timeout:       5 * time.Second,
+	}
+
+	result, err := Verify(tokenString, config, mockKeyFunc(&privateKey.PublicKey))
+	if err == nil {
+		t.Error("Expected error for missing issuer claim, got none")
+	}
+	if result != nil {
+		t.Error("Expected result to be nil for missing issuer claim")
+	}
+	if _, ok := err.(*errors.ValidationError); !ok {
+		t.Errorf("Expected ValidationError, got %T", err)
+	}
+}
+
+func TestVerifyIssuerNonStringClaim(t *testing.T) {
+	// Test non-string issuer claim
+	keyID := uuid.MustParse("123e4567-e89b-12d3-a456-426614174000")
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("Failed to generate key: %v", err)
+	}
+
+	testCases := []struct {
+		name   string
+		issuer interface{}
+	}{
+		{
+			name:   "issuer as integer",
+			issuer: 12345,
+		},
+		{
+			name:   "issuer as map",
+			issuer: map[string]interface{}{"url": "https://example.com/"},
+		},
+		{
+			name:   "issuer as array",
+			issuer: []string{"https://example.com/"},
+		},
+		{
+			name:   "issuer as nil",
+			issuer: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			claims := jwt.MapClaims{
+				"sub": "test-user",
+				"iss": tc.issuer,
+				"aud": "test-audience",
+				"exp": time.Now().Add(1 * time.Hour).Unix(),
+				"ver": "japikey-v1",
+			}
+
+			token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+			token.Header["kid"] = keyID.String()
+			tokenString, err := token.SignedString(privateKey)
+			if err != nil {
+				t.Fatalf("Failed to sign token: %v", err)
+			}
+
+			config := VerifyConfig{
+				BaseIssuerURL: "https://example.com/",
+				Timeout:       5 * time.Second,
+			}
+
+			result, err := Verify(tokenString, config, mockKeyFunc(&privateKey.PublicKey))
+			if err == nil {
+				t.Error("Expected error for non-string issuer claim, got none")
+			}
+			if result != nil {
+				t.Error("Expected result to be nil for non-string issuer claim")
+			}
+			if _, ok := err.(*errors.ValidationError); !ok {
+				t.Errorf("Expected ValidationError, got %T", err)
+			}
+		})
 	}
 }

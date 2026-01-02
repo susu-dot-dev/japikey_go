@@ -20,21 +20,6 @@ const (
 	// IssuerClaim is the JWT claim key for the issuer
 	IssuerClaim = "iss"
 
-	// ExpirationClaim is the JWT claim key for the expiration time
-	ExpirationClaim = "exp"
-
-	// NotBeforeClaim is the JWT claim key for the not-before time
-	NotBeforeClaim = "nbf"
-
-	// IssuedAtClaim is the JWT claim key for the issued-at time
-	IssuedAtClaim = "iat"
-
 	// KeyIDHeader is the JWT header key for the key identifier
 	KeyIDHeader = "kid"
-
-	// TypeHeader is the JWT header key for the token type
-	TypeHeader = "typ"
-
-	// TokenType is the expected value for the 'typ' header
-	TokenType = "JWT"
 )
