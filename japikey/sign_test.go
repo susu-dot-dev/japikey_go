@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/susu-dot-dev/japikey/errors"
 )
 
@@ -34,7 +35,7 @@ func TestNewJAPIKey_WithValidInputs_ReturnsValidJWT(t *testing.T) {
 		t.Error("Expected JWT to be populated, but it was empty")
 	}
 
-	if result.KeyID == "" {
+	if result.KeyID == uuid.Nil {
 		t.Error("Expected KeyID to be populated, but it was empty")
 	}
 
@@ -153,8 +154,19 @@ func TestNewJAPIKey_ContainsKeyIDInHeader(t *testing.T) {
 		// This test will fail until we implement task T026
 		if kid, exists := header["kid"]; !exists {
 			t.Error("Expected key ID 'kid' to be present in JWT header")
-		} else if kid != result.KeyID {
-			t.Errorf("Expected key ID in header to match result.KeyID, got %v, want %v", kid, result.KeyID)
+		} else {
+			kidStr, ok := kid.(string)
+			if !ok {
+				kidUUID, ok := kid.(uuid.UUID)
+				if !ok || kidUUID != result.KeyID {
+					t.Errorf("Expected key ID in header to match result.KeyID, got %v, want %v", kid, result.KeyID)
+				}
+			} else {
+				kidUUID, err := uuid.Parse(kidStr)
+				if err != nil || kidUUID != result.KeyID {
+					t.Errorf("Expected key ID in header to match result.KeyID, got %v, want %v", kid, result.KeyID)
+				}
+			}
 		}
 	} else {
 		t.Error("Could not access header from JWT")
@@ -320,7 +332,7 @@ func TestPrivateKeyNotAccessibleAfterCreation(t *testing.T) {
 		t.Error("Expected JWT to be populated")
 	}
 
-	if result.KeyID == "" {
+	if result.KeyID == uuid.Nil {
 		t.Error("Expected KeyID to be populated")
 	}
 
@@ -377,7 +389,7 @@ func TestThreadSafety(t *testing.T) {
 		if result.JWT == "" {
 			t.Error("Expected JWT to be populated")
 		}
-		if result.KeyID == "" {
+		if result.KeyID == uuid.Nil {
 			t.Error("Expected KeyID to be populated")
 		}
 		if result.PublicKey == nil {
@@ -466,7 +478,7 @@ func TestConcurrentAPIKeyGeneration(t *testing.T) {
 		if result.JWT == "" {
 			t.Error("Expected JWT to be populated")
 		}
-		if result.KeyID == "" {
+		if result.KeyID == uuid.Nil {
 			t.Error("Expected KeyID to be populated")
 		}
 		if result.PublicKey == nil {
@@ -475,7 +487,7 @@ func TestConcurrentAPIKeyGeneration(t *testing.T) {
 	}
 
 	// Verify all KeyIDs are unique
-	seenKeyIDs := make(map[string]bool)
+	seenKeyIDs := make(map[uuid.UUID]bool)
 	for _, result := range validResults {
 		if result != nil && seenKeyIDs[result.KeyID] {
 			t.Errorf("Duplicate KeyID found: %s", result.KeyID)
@@ -579,7 +591,7 @@ func TestPrivateKeyNeverAccessibleAfterCreation(t *testing.T) {
 		t.Error("Expected JWT to be populated")
 	}
 
-	if result.KeyID == "" {
+	if result.KeyID == uuid.Nil {
 		t.Error("Expected KeyID to be populated")
 	}
 
@@ -631,7 +643,7 @@ func TestIntegrationFullWorkflow(t *testing.T) {
 		t.Error("Expected JWT to be populated")
 	}
 
-	if result.KeyID == "" {
+	if result.KeyID == uuid.Nil {
 		t.Error("Expected KeyID to be populated")
 	}
 
@@ -680,8 +692,21 @@ func TestIntegrationFullWorkflow(t *testing.T) {
 	}
 
 	// Step 5: Verify the key ID in the JWT header matches the returned KeyID
-	if headerKid, exists := token.Header["kid"]; !exists || headerKid != result.KeyID {
-		t.Errorf("Expected key ID in header to match result.KeyID, got '%v', want '%v'", headerKid, result.KeyID)
+	if headerKid, exists := token.Header["kid"]; !exists {
+		t.Error("Expected key ID 'kid' to be present in JWT header")
+	} else {
+		kidStr, ok := headerKid.(string)
+		if !ok {
+			kidUUID, ok := headerKid.(uuid.UUID)
+			if !ok || kidUUID != result.KeyID {
+				t.Errorf("Expected key ID in header to match result.KeyID, got '%v', want '%v'", headerKid, result.KeyID)
+			}
+		} else {
+			kidUUID, err := uuid.Parse(kidStr)
+			if err != nil || kidUUID != result.KeyID {
+				t.Errorf("Expected key ID in header to match result.KeyID, got '%v', want '%v'", headerKid, result.KeyID)
+			}
+		}
 	}
 }
 

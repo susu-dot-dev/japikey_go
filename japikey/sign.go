@@ -8,6 +8,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/susu-dot-dev/japikey/errors"
+	"github.com/susu-dot-dev/japikey/internal/jwks"
 )
 
 type Config struct {
@@ -21,7 +22,11 @@ type Config struct {
 type JAPIKey struct {
 	JWT       string
 	PublicKey *rsa.PublicKey
-	KeyID     string
+	KeyID     uuid.UUID
+}
+
+func (j *JAPIKey) ToJWKS() (*jwks.JWKS, error) {
+	return jwks.NewJWKS(j.PublicKey, j.KeyID)
 }
 
 func NewJAPIKey(config Config) (*JAPIKey, error) {
@@ -34,7 +39,7 @@ func NewJAPIKey(config Config) (*JAPIKey, error) {
 		return nil, errors.NewInternalError("failed to generate RSA key pair")
 	}
 
-	keyID := uuid.New().String()
+	keyID := uuid.New()
 
 	claims := jwt.MapClaims{}
 	for k, v := range config.Claims {
