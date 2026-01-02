@@ -10,12 +10,14 @@ func TestNewJapiKeyVersion_ValidVersions(t *testing.T) {
 	testCases := []struct {
 		name           string
 		versionStr     string
+		maxVersion     int
 		expectedNumber int
 		expectedString string
 	}{
 		{
 			name:           "version 1",
 			versionStr:     "japikey-v1",
+			maxVersion:     1,
 			expectedNumber: 1,
 			expectedString: "japikey-v1",
 		},
@@ -23,7 +25,7 @@ func TestNewJapiKeyVersion_ValidVersions(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			version, err := NewJapiKeyVersion(tc.versionStr)
+			version, err := NewJapiKeyVersion(tc.versionStr, tc.maxVersion)
 			if err != nil {
 				t.Errorf("Expected no error for valid version %s, got: %v", tc.versionStr, err)
 			}
@@ -44,118 +46,140 @@ func TestNewJapiKeyVersion_InvalidFormat(t *testing.T) {
 	testCases := []struct {
 		name        string
 		versionStr  string
+		maxVersion  int
 		expectError bool
 	}{
 		{
 			name:        "empty string",
 			versionStr:  "",
+			maxVersion:  1,
 			expectError: true,
 		},
 		{
 			name:        "wrong prefix",
 			versionStr:  "jwt-v1",
+			maxVersion:  1,
 			expectError: true,
 		},
 		{
 			name:        "missing prefix",
 			versionStr:  "v1",
+			maxVersion:  1,
 			expectError: true,
 		},
 		{
 			name:        "only prefix",
 			versionStr:  "japikey-v",
+			maxVersion:  1,
 			expectError: true,
 		},
 		{
 			name:        "prefix with dash but no number",
 			versionStr:  "japikey-v-",
+			maxVersion:  1,
 			expectError: true,
 		},
 		{
 			name:        "lowercase prefix",
 			versionStr:  "JAPIKEY-V1",
+			maxVersion:  1,
 			expectError: true,
 		},
 		{
 			name:        "mixed case prefix",
 			versionStr:  "Japikey-v1",
+			maxVersion:  1,
 			expectError: true,
 		},
 		{
 			name:        "extra characters before prefix",
 			versionStr:  "prefix-japikey-v1",
+			maxVersion:  1,
 			expectError: true,
 		},
 		{
 			name:        "extra characters after number",
 			versionStr:  "japikey-v1extra",
+			maxVersion:  1,
 			expectError: true,
 		},
 		{
 			name:        "version with letter after number",
 			versionStr:  "japikey-v1a",
+			maxVersion:  1,
 			expectError: true,
 		},
 		{
 			name:        "version with letter before number",
 			versionStr:  "japikey-va1",
+			maxVersion:  1,
 			expectError: true,
 		},
 		{
 			name:        "non-numeric version",
 			versionStr:  "japikey-vabc",
+			maxVersion:  1,
 			expectError: true,
 		},
 		{
 			name:        "negative version",
 			versionStr:  "japikey-v-1",
+			maxVersion:  1,
 			expectError: true,
 		},
 		{
 			name:        "zero version",
 			versionStr:  "japikey-v0",
+			maxVersion:  1,
 			expectError: true,
 		},
 		{
 			name:        "version with leading zeros single",
 			versionStr:  "japikey-v01",
+			maxVersion:  1,
 			expectError: true,
 		},
 		{
 			name:        "version with leading zeros multiple",
 			versionStr:  "japikey-v0001",
+			maxVersion:  1,
 			expectError: true,
 		},
 		{
 			name:        "version exceeds maximum",
 			versionStr:  "japikey-v2",
+			maxVersion:  1,
 			expectError: true,
 		},
 		{
 			name:        "very large version number",
 			versionStr:  "japikey-v999",
+			maxVersion:  1,
 			expectError: true,
 		},
 		{
 			name:        "version with decimal",
 			versionStr:  "japikey-v1.5",
+			maxVersion:  1,
 			expectError: true,
 		},
 		{
 			name:        "version with spaces",
 			versionStr:  "japikey-v 1",
+			maxVersion:  1,
 			expectError: true,
 		},
 		{
 			name:        "version with multiple dashes",
 			versionStr:  "japikey-v-1",
+			maxVersion:  1,
 			expectError: true,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			version, err := NewJapiKeyVersion(tc.versionStr)
+			version, err := NewJapiKeyVersion(tc.versionStr, tc.maxVersion)
 			if tc.expectError {
 				if err == nil {
 					t.Errorf("Expected error for invalid version %s, got none", tc.versionStr)
@@ -178,138 +202,9 @@ func TestNewJapiKeyVersion_InvalidFormat(t *testing.T) {
 	}
 }
 
-func TestValidateVersionFromClaims_Valid(t *testing.T) {
-	claims := map[string]interface{}{
-		"ver": "japikey-v1",
-		"sub": "test-user",
-	}
-
-	version, err := ValidateVersionFromClaims(claims)
-	if err != nil {
-		t.Errorf("Expected no error, got: %v", err)
-	}
-	if version == nil {
-		t.Fatal("Expected version to not be nil")
-	}
-	if version.Version() != 1 {
-		t.Errorf("Expected version number 1, got %d", version.Version())
-	}
-}
-
-func TestValidateVersionFromClaims_MissingClaim(t *testing.T) {
-	claims := map[string]interface{}{
-		"sub": "test-user",
-		// Missing "ver" claim
-	}
-
-	version, err := ValidateVersionFromClaims(claims)
-	if err == nil {
-		t.Error("Expected error for missing version claim, got none")
-	}
-	if version != nil {
-		t.Error("Expected version to be nil for missing claim")
-	}
-	if _, ok := err.(*errors.ValidationError); !ok {
-		t.Errorf("Expected ValidationError, got %T", err)
-	}
-}
-
-func TestValidateVersionFromClaims_NonStringClaim(t *testing.T) {
-	testCases := []struct {
-		name  string
-		value interface{}
-	}{
-		{
-			name:  "integer",
-			value: 1,
-		},
-		{
-			name:  "float",
-			value: 1.0,
-		},
-		{
-			name:  "boolean",
-			value: true,
-		},
-		{
-			name:  "map",
-			value: map[string]interface{}{"version": "japikey-v1"},
-		},
-		{
-			name:  "array",
-			value: []string{"japikey-v1"},
-		},
-		{
-			name:  "nil",
-			value: nil,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			claims := map[string]interface{}{
-				"ver": tc.value,
-			}
-
-			version, err := ValidateVersionFromClaims(claims)
-			if err == nil {
-				t.Errorf("Expected error for non-string version claim (%T), got none", tc.value)
-			}
-			if version != nil {
-				t.Errorf("Expected version to be nil for non-string claim (%T)", tc.value)
-			}
-			if _, ok := err.(*errors.ValidationError); !ok {
-				t.Errorf("Expected ValidationError, got %T", err)
-			}
-		})
-	}
-}
-
-func TestValidateVersionFromClaims_InvalidVersionString(t *testing.T) {
-	testCases := []struct {
-		name       string
-		versionStr string
-	}{
-		{
-			name:       "empty string",
-			versionStr: "",
-		},
-		{
-			name:       "wrong prefix",
-			versionStr: "jwt-v1",
-		},
-		{
-			name:       "exceeds maximum",
-			versionStr: "japikey-v2",
-		},
-		{
-			name:       "zero version",
-			versionStr: "japikey-v0",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			claims := map[string]interface{}{
-				"ver": tc.versionStr,
-			}
-
-			version, err := ValidateVersionFromClaims(claims)
-			if err == nil {
-				t.Errorf("Expected error for invalid version string %s, got none", tc.versionStr)
-			}
-			if version != nil {
-				t.Errorf("Expected version to be nil for invalid version string %s", tc.versionStr)
-			}
-			if _, ok := err.(*errors.ValidationError); !ok {
-				t.Errorf("Expected ValidationError, got %T", err)
-			}
-		})
-	}
-}
 
 func TestJapiKeyVersion_String(t *testing.T) {
-	version, err := NewJapiKeyVersion("japikey-v1")
+	version, err := NewJapiKeyVersion("japikey-v1", 1)
 	if err != nil {
 		t.Fatalf("Failed to create version: %v", err)
 	}
@@ -321,7 +216,7 @@ func TestJapiKeyVersion_String(t *testing.T) {
 }
 
 func TestJapiKeyVersion_Version(t *testing.T) {
-	version, err := NewJapiKeyVersion("japikey-v1")
+	version, err := NewJapiKeyVersion("japikey-v1", 1)
 	if err != nil {
 		t.Fatalf("Failed to create version: %v", err)
 	}
@@ -332,16 +227,8 @@ func TestJapiKeyVersion_Version(t *testing.T) {
 	}
 }
 
-func TestNewJapiKeyVersion_WithMaxVersionOverride(t *testing.T) {
-	// Save original override
-	originalOverride := maxVersionOverride
-	defer func() {
-		maxVersionOverride = originalOverride
-	}()
-
-	// Test with higher max version
+func TestNewJapiKeyVersion_WithMaxVersion(t *testing.T) {
 	maxVersion := 100
-	maxVersionOverride = &maxVersion
 
 	testCases := []struct {
 		name           string
@@ -371,7 +258,7 @@ func TestNewJapiKeyVersion_WithMaxVersionOverride(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			version, err := NewJapiKeyVersion(tc.versionStr)
+			version, err := NewJapiKeyVersion(tc.versionStr, maxVersion)
 			if err != nil {
 				t.Errorf("Expected no error for valid version %s, got: %v", tc.versionStr, err)
 			}
@@ -387,12 +274,74 @@ func TestNewJapiKeyVersion_WithMaxVersionOverride(t *testing.T) {
 		})
 	}
 
-	// Test that version exceeding override still fails
-	version, err := NewJapiKeyVersion("japikey-v101")
+	// Test that version exceeding max still fails
+	version, err := NewJapiKeyVersion("japikey-v101", maxVersion)
 	if err == nil {
-		t.Error("Expected error for version exceeding override max, got none")
+		t.Error("Expected error for version exceeding max, got none")
 	}
 	if version != nil {
-		t.Error("Expected version to be nil for version exceeding override max")
+		t.Error("Expected version to be nil for version exceeding max")
+	}
+}
+
+func TestNewJapiKeyVersion_OverflowProtection(t *testing.T) {
+	// Test that very large version numbers are rejected by regex before parsing
+	// This prevents potential integer overflow issues
+	maxVersion := 999
+
+	testCases := []struct {
+		name        string
+		versionStr  string
+		expectError bool
+		description string
+	}{
+		{
+			name:        "version exceeds max by one digit",
+			versionStr:  "japikey-v1000",
+			expectError: true,
+			description: "Version with 4 digits when max is 3 digits should be rejected by regex",
+		},
+		{
+			name:        "very large version number",
+			versionStr:  "japikey-v999999999",
+			expectError: true,
+			description: "Extremely large version should be rejected by regex",
+		},
+		{
+			name:        "version at max boundary",
+			versionStr:  "japikey-v999",
+			expectError: false,
+			description: "Version at max should be accepted",
+		},
+		{
+			name:        "version just below max",
+			versionStr:  "japikey-v998",
+			expectError: false,
+			description: "Version just below max should be accepted",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			version, err := NewJapiKeyVersion(tc.versionStr, maxVersion)
+			if tc.expectError {
+				if err == nil {
+					t.Errorf("Expected error for %s (%s), got none", tc.versionStr, tc.description)
+				}
+				if version != nil {
+					t.Errorf("Expected version to be nil for %s", tc.versionStr)
+				}
+				if _, ok := err.(*errors.ValidationError); !ok {
+					t.Errorf("Expected ValidationError, got %T", err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error for %s (%s), got: %v", tc.versionStr, tc.description, err)
+				}
+				if version == nil {
+					t.Error("Expected version to not be nil")
+				}
+			}
+		})
 	}
 }
