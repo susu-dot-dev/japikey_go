@@ -7,6 +7,7 @@ import (
 	"math/big"
 
 	"github.com/google/uuid"
+	"github.com/susu-dot-dev/japikey/errors"
 )
 
 // JWK represents the structure of a JSON Web Key
@@ -37,18 +38,12 @@ type encodedJWKS struct {
 func NewJWKS(publicKey *rsa.PublicKey, kid uuid.UUID) (*JWKS, error) {
 	// Validate that the public key is not nil
 	if publicKey == nil {
-		return nil, &UnexpectedConversionError{
-			Message: "RSA public key cannot be nil",
-			Code:    "UnexpectedConversionError",
-		}
+		return nil, errors.NewValidationError("RSA public key cannot be nil")
 	}
 
 	// Validate that the key ID is not empty
 	if kid == uuid.Nil {
-		return nil, &InvalidJWKError{
-			Message: "key ID cannot be empty",
-			Code:    "InvalidJWK",
-		}
+		return nil, errors.NewValidationError("key ID cannot be empty")
 	}
 
 	// Encode the RSA modulus (n) and exponent (e) as Base64urlUInt
@@ -65,10 +60,7 @@ func NewJWKS(publicKey *rsa.PublicKey, kid uuid.UUID) (*JWKS, error) {
 	}
 
 	if jwk.kid == uuid.Nil {
-		return nil, &InvalidJWKError{
-			Message: "kid parameter cannot be empty",
-			Code:    "InvalidJWK",
-		}
+		return nil, errors.NewValidationError("kid parameter cannot be empty")
 	}
 
 	// Create the JWKS with the single JWK
@@ -83,10 +75,7 @@ func NewJWKS(publicKey *rsa.PublicKey, kid uuid.UUID) (*JWKS, error) {
 func (j *JWKS) GetPublicKey(kid uuid.UUID) (*rsa.PublicKey, error) {
 	// Validate that the key ID matches the requested one
 	if j.jwk.kid != kid {
-		return nil, &KeyNotFoundError{
-			Message: "key ID not found in JWKS",
-			Code:    "KeyNotFoundError",
-		}
+		return nil, errors.NewKeyNotFoundError("key ID not found in JWKS")
 	}
 
 	return j.jwk.publicKey, nil
@@ -119,32 +108,20 @@ func (j *JWKS) UnmarshalJSON(data []byte) error {
 	}
 	ejwks := encodedJWKS{}
 	if err := json.Unmarshal(data, &ejwks); err != nil {
-		return &InvalidJWKError{
-			Message: "invalid JWKS JSON format: " + err.Error(),
-			Code:    "InvalidJWK",
-		}
+		return errors.NewValidationError("invalid JWKS JSON format: " + err.Error())
 	}
 	ejwk := ejwks.Keys[0]
 	if ejwk.Kty != "RSA" {
-		return &InvalidJWKError{
-			Message: "kty parameter must be 'RSA'",
-			Code:    "InvalidJWK",
-		}
+		return errors.NewValidationError("kty parameter must be 'RSA'")
 	}
 	modulus, err := base64urlUIntDecode(ejwk.N)
 	if err != nil {
-		return &InvalidJWKError{
-			Message: "failed to decode modulus: " + err.Error(),
-			Code:    "InvalidJWK",
-		}
+		return errors.NewValidationError("failed to decode modulus: " + err.Error())
 	}
 
 	exponent, err := base64urlUIntDecode(ejwk.E)
 	if err != nil {
-		return &InvalidJWKError{
-			Message: "failed to decode exponent: " + err.Error(),
-			Code:    "InvalidJWK",
-		}
+		return errors.NewValidationError("failed to decode exponent: " + err.Error())
 	}
 
 	// Create the RSA public key
@@ -161,10 +138,7 @@ func (j *JWKS) UnmarshalJSON(data []byte) error {
 
 	// Validate that the returned JWKS has the same n and e values
 	if jwks.jwk.n != ejwk.N || jwks.jwk.e != ejwk.E {
-		return &UnexpectedConversionError{
-			Message: "round-trip validation failed: n values do not match",
-			Code:    "InvalidJWK",
-		}
+		return errors.NewConversionError("round-trip validation failed: n values do not match")
 	}
 	j.jwk = jwks.jwk
 
@@ -180,36 +154,24 @@ func (j *JWKS) validateJSONShape(data []byte) error {
 		Keys []map[string]interface{} `json:"keys"`
 	}
 	if err := json.Unmarshal(data, &jwksUntyped); err != nil {
-		return &InvalidJWKError{
-			Message: "invalid JWKS JSON format: " + err.Error(),
-			Code:    "InvalidJWK",
-		}
+		return errors.NewValidationError("invalid JWKS JSON format: " + err.Error())
 	}
 
 	// Check that the array has exactly one element
 	if len(jwksUntyped.Keys) != 1 {
-		return &InvalidJWKError{
-			Message: "JWKS must contain exactly one key",
-			Code:    "InvalidJWK",
-		}
+		return errors.NewValidationError("JWKS must contain exactly one key")
 	}
 
 	// Get the single key element
 	jwkUntyped := jwksUntyped.Keys[0]
 	expectedFields := []string{"kty", "kid", "n", "e"}
 	if len(jwkUntyped) != len(expectedFields) {
-		return &InvalidJWKError{
-			Message: "JWK must contain exactly 4 fields: kty, kid, n, e",
-			Code:    "InvalidJWK",
-		}
+		return errors.NewValidationError("JWK must contain exactly 4 fields: kty, kid, n, e")
 	}
 
 	for _, field := range expectedFields {
 		if _, exists := jwkUntyped[field]; !exists {
-			return &InvalidJWKError{
-				Message: "JWK must contain '" + field + "' field",
-				Code:    "InvalidJWK",
-			}
+			return errors.NewValidationError("JWK must contain '" + field + "' field")
 		}
 	}
 	return nil
@@ -236,10 +198,7 @@ func base64urlUIntEncode(n *big.Int) string {
 // base64urlUIntDecode decodes a Base64urlUInt string to a positive integer according to RFC 7518
 func base64urlUIntDecode(s string) (*big.Int, error) {
 	if s == "" {
-		return nil, &InvalidJWKError{
-			Message: "Base64urlUInt string cannot be empty",
-			Code:    "InvalidJWK",
-		}
+		return nil, errors.NewValidationError("Base64urlUInt string cannot be empty")
 	}
 
 	// Handle the zero case specially as per RFC
@@ -250,10 +209,7 @@ func base64urlUIntDecode(s string) (*big.Int, error) {
 	// Decode using unpadded base64url encoding
 	bytes, err := base64.RawURLEncoding.DecodeString(s)
 	if err != nil {
-		return nil, &InvalidJWKError{
-			Message: "invalid Base64urlUInt encoding: " + err.Error(),
-			Code:    "InvalidJWK",
-		}
+		return nil, errors.NewValidationError("invalid Base64urlUInt encoding: " + err.Error())
 	}
 
 	// Convert bytes to big integer

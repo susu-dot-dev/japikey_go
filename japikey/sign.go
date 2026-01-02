@@ -7,6 +7,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/susu-dot-dev/japikey/errors"
 )
 
 type Config struct {
@@ -30,10 +31,7 @@ func NewJAPIKey(config Config) (*JAPIKey, error) {
 
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		return nil, &JAPIKeyGenerationError{
-			Message: "failed to generate RSA key pair",
-			Code:    "KeyGenerationError",
-		}
+		return nil, errors.NewInternalError("failed to generate RSA key pair")
 	}
 
 	keyID := uuid.New().String()
@@ -54,10 +52,7 @@ func NewJAPIKey(config Config) (*JAPIKey, error) {
 
 	jwtString, err := token.SignedString(privateKey)
 	if err != nil {
-		return nil, &JAPIKeySigningError{
-			Message: "failed to sign JWT",
-			Code:    "SigningError",
-		}
+		return nil, errors.NewInternalError("failed to sign JWT")
 	}
 
 	result := &JAPIKey{
@@ -71,45 +66,12 @@ func NewJAPIKey(config Config) (*JAPIKey, error) {
 
 func validateConfig(config Config) error {
 	if config.Subject == "" {
-		return &JAPIKeyValidationError{
-			Message: "subject cannot be empty",
-			Code:    "ValidationError",
-		}
+		return errors.NewValidationError("subject cannot be empty")
 	}
 
 	if config.ExpiresAt.Before(time.Now()) {
-		return &JAPIKeyValidationError{
-			Message: "expiration time must be in the future",
-			Code:    "ValidationError",
-		}
+		return errors.NewValidationError("expiration time must be in the future")
 	}
 
 	return nil
-}
-
-type JAPIKeyValidationError struct {
-	Message string
-	Code    string
-}
-
-func (e *JAPIKeyValidationError) Error() string {
-	return e.Message
-}
-
-type JAPIKeyGenerationError struct {
-	Message string
-	Code    string
-}
-
-func (e *JAPIKeyGenerationError) Error() string {
-	return e.Message
-}
-
-type JAPIKeySigningError struct {
-	Message string
-	Code    string
-}
-
-func (e *JAPIKeySigningError) Error() string {
-	return e.Message
 }

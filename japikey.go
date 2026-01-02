@@ -4,6 +4,7 @@
 package japikey
 
 import (
+	"github.com/susu-dot-dev/japikey/errors"
 	"github.com/susu-dot-dev/japikey/japikey"
 )
 
@@ -22,14 +23,18 @@ func NewJAPIKey(config Config) (*JAPIKey, error) {
 	return japikey.NewJAPIKey(config)
 }
 
-// JAPIKeyValidationError is returned when input parameters fail validation.
-// Examples include expired time or empty subject.
-type JAPIKeyValidationError = japikey.JAPIKeyValidationError
+// ValidationError is returned when input parameters fail validation.
+// Examples include expired time, empty subject, invalid JWK format, or invalid RSA parameters.
+type ValidationError = errors.ValidationError
 
-// JAPIKeyGenerationError is returned when cryptographic operations fail during key generation.
-// Examples include failure to generate RSA key pair or insufficient entropy.
-type JAPIKeyGenerationError = japikey.JAPIKeyGenerationError
+// ConversionError is returned when cryptographic operations fail during conversion.
+// Examples include failure to convert JAPIKey to JWK or failure to encode RSA parameters.
+type ConversionError = errors.ConversionError
 
-// JAPIKeySigningError is returned when JWT signing operations fail.
-// Examples include failure to sign the JWT with the private key.
-type JAPIKeySigningError = japikey.JAPIKeySigningError
+// KeyNotFoundError is returned when the requested key ID is not present in the JWKS.
+// Examples include attempting to get a public key for a non-existent key ID.
+type KeyNotFoundError = errors.KeyNotFoundError
+
+// InternalError is returned when internal operations fail.
+// Examples include key generation failures, signing failures, and other internal cryptographic operations.
+type InternalError = errors.InternalError

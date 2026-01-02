@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/susu-dot-dev/japikey/errors"
 )
 
 func TestNewJAPIKey_WithValidInputs_ReturnsValidJWT(t *testing.T) {
@@ -255,10 +256,7 @@ func TestNewJAPIKey_WithCryptographicFailure_ReturnsGenerationError(t *testing.T
 
 	// We can't easily force a cryptographic failure in rsa.GenerateKey
 	// So we'll test that the error type exists and implements the error interface
-	err := &JAPIKeyGenerationError{
-		Message: "test error",
-		Code:    "KeyGenerationError",
-	}
+	err := errors.NewInternalError("test error")
 
 	if err.Error() != "test error" {
 		t.Errorf("Expected error message 'test error', got '%s'", err.Error())
@@ -272,10 +270,7 @@ func TestNewJAPIKey_WithSigningFailure_ReturnsSigningError(t *testing.T) {
 
 	// We can't easily force a signing failure in token.SignedString
 	// So we'll test that the error type exists and implements the error interface
-	err := &JAPIKeySigningError{
-		Message: "test signing error",
-		Code:    "SigningError",
-	}
+	err := errors.NewInternalError("test signing error")
 
 	if err.Error() != "test signing error" {
 		t.Errorf("Expected error message 'test signing error', got '%s'", err.Error())
@@ -284,34 +279,17 @@ func TestNewJAPIKey_WithSigningFailure_ReturnsSigningError(t *testing.T) {
 
 func TestTypeAssertionsForErrorHandling(t *testing.T) {
 	// Test that type assertions work for specific error handling
-	validationErr := &JAPIKeyValidationError{
-		Message: "validation error",
-		Code:    "ValidationError",
-	}
-
-	generationErr := &JAPIKeyGenerationError{
-		Message: "generation error",
-		Code:    "KeyGenerationError",
-	}
-
-	signingErr := &JAPIKeySigningError{
-		Message: "signing error",
-		Code:    "SigningError",
-	}
+	validationErr := errors.NewValidationError("validation error")
+	internalErr := errors.NewInternalError("internal error")
 
 	// Test type assertion for validation error
-	if _, ok := interface{}(validationErr).(*JAPIKeyValidationError); !ok {
-		t.Error("Type assertion for JAPIKeyValidationError failed")
+	if _, ok := interface{}(validationErr).(*errors.ValidationError); !ok {
+		t.Error("Type assertion for ValidationError failed")
 	}
 
-	// Test type assertion for generation error
-	if _, ok := interface{}(generationErr).(*JAPIKeyGenerationError); !ok {
-		t.Error("Type assertion for JAPIKeyGenerationError failed")
-	}
-
-	// Test type assertion for signing error
-	if _, ok := interface{}(signingErr).(*JAPIKeySigningError); !ok {
-		t.Error("Type assertion for JAPIKeySigningError failed")
+	// Test type assertion for internal error
+	if _, ok := interface{}(internalErr).(*errors.InternalError); !ok {
+		t.Error("Type assertion for InternalError failed")
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/susu-dot-dev/japikey/errors"
 )
 
 func TestNewJWK_WithValidRSAKeyAndUUID_ReturnsValidJWKS(t *testing.T) {
@@ -114,8 +115,8 @@ func TestNewJWK_WithInvalidKeyID_ReturnsError(t *testing.T) {
 	}
 
 	// Verify the error type is correct
-	if _, ok := err.(*InvalidJWKError); !ok {
-		t.Errorf("Expected InvalidJWKError, got %T", err)
+	if _, ok := err.(*errors.ValidationError); !ok {
+		t.Errorf("Expected ValidationError, got %T", err)
 	}
 }
 
@@ -136,8 +137,8 @@ func TestNewJWK_WithNullRSAPublicKey_ReturnsError(t *testing.T) {
 	}
 
 	// Verify the error type is correct
-	if _, ok := err.(*UnexpectedConversionError); !ok {
-		t.Errorf("Expected UnexpectedConversionError, got %T", err)
+	if _, ok := err.(*errors.ValidationError); !ok {
+		t.Errorf("Expected ValidationError, got %T", err)
 	}
 }
 
@@ -247,8 +248,8 @@ func TestJWKS_InvalidJSONDeserialization(t *testing.T) {
 	}
 
 	// Verify the error type is correct
-	if _, ok := err.(*InvalidJWKError); !ok {
-		t.Errorf("Expected InvalidJWKError, got %T", err)
+	if _, ok := err.(*errors.ValidationError); !ok {
+		t.Errorf("Expected ValidationError, got %T", err)
 	}
 }
 
@@ -267,8 +268,8 @@ func TestJWKS_InvalidRSAParametersInJSON(t *testing.T) {
 	}
 
 	// Verify the error type is correct
-	if _, ok := err.(*InvalidJWKError); !ok {
-		t.Errorf("Expected InvalidJWKError, got %T", err)
+	if _, ok := err.(*errors.ValidationError); !ok {
+		t.Errorf("Expected ValidationError, got %T", err)
 	}
 }
 
@@ -290,8 +291,8 @@ func TestJWKS_MultipleKeysInJSON(t *testing.T) {
 	}
 
 	// Verify the error type is correct
-	if _, ok := err.(*InvalidJWKError); !ok {
-		t.Errorf("Expected InvalidJWKError, got %T", err)
+	if _, ok := err.(*errors.ValidationError); !ok {
+		t.Errorf("Expected ValidationError, got %T", err)
 	}
 }
 
@@ -309,8 +310,8 @@ func TestJWKS_EmptyKeysArray(t *testing.T) {
 	}
 
 	// Verify the error type is correct
-	if _, ok := err.(*InvalidJWKError); !ok {
-		t.Errorf("Expected InvalidJWKError, got %T", err)
+	if _, ok := err.(*errors.ValidationError); !ok {
+		t.Errorf("Expected ValidationError, got %T", err)
 	}
 }
 
@@ -570,7 +571,7 @@ func TestJWKS_GetPublicKey_WithInvalidKeyID(t *testing.T) {
 	}
 
 	// Verify the error type is correct
-	if _, ok := err.(*KeyNotFoundError); !ok {
+	if _, ok := err.(*errors.KeyNotFoundError); !ok {
 		t.Errorf("Expected KeyNotFoundError, got %T", err)
 	}
 }
@@ -701,8 +702,8 @@ func TestJWKS_ExtraKeysInJWK(t *testing.T) {
 		t.Fatal("Expected error for extra keys in JWK, but got none")
 	}
 
-	if _, ok := err.(*InvalidJWKError); !ok {
-		t.Errorf("Expected InvalidJWKError, got %T", err)
+	if _, ok := err.(*errors.ValidationError); !ok {
+		t.Errorf("Expected ValidationError, got %T", err)
 	}
 }
 
@@ -720,8 +721,8 @@ func TestJWKS_WrongTypeForKty(t *testing.T) {
 		t.Fatal("Expected error for wrong type for kty, but got none")
 	}
 
-	if _, ok := err.(*InvalidJWKError); !ok {
-		t.Errorf("Expected InvalidJWKError, got %T", err)
+	if _, ok := err.(*errors.ValidationError); !ok {
+		t.Errorf("Expected ValidationError, got %T", err)
 	}
 }
 
@@ -738,8 +739,8 @@ func TestJWKS_WrongTypeForKid(t *testing.T) {
 		t.Fatal("Expected error for wrong type for kid, but got none")
 	}
 
-	if _, ok := err.(*InvalidJWKError); !ok {
-		t.Errorf("Expected InvalidJWKError, got %T", err)
+	if _, ok := err.(*errors.ValidationError); !ok {
+		t.Errorf("Expected ValidationError, got %T", err)
 	}
 }
 
@@ -757,8 +758,8 @@ func TestJWKS_WrongTypeForN(t *testing.T) {
 		t.Fatal("Expected error for wrong type for n, but got none")
 	}
 
-	if _, ok := err.(*InvalidJWKError); !ok {
-		t.Errorf("Expected InvalidJWKError, got %T", err)
+	if _, ok := err.(*errors.ValidationError); !ok {
+		t.Errorf("Expected ValidationError, got %T", err)
 	}
 }
 
@@ -776,8 +777,8 @@ func TestJWKS_WrongTypeForE(t *testing.T) {
 		t.Fatal("Expected error for wrong type for e, but got none")
 	}
 
-	if _, ok := err.(*InvalidJWKError); !ok {
-		t.Errorf("Expected InvalidJWKError, got %T", err)
+	if _, ok := err.(*errors.ValidationError); !ok {
+		t.Errorf("Expected ValidationError, got %T", err)
 	}
 }
 
@@ -795,8 +796,8 @@ func TestJWKS_MissingKty(t *testing.T) {
 		t.Fatal("Expected error for missing kty, but got none")
 	}
 
-	if _, ok := err.(*InvalidJWKError); !ok {
-		t.Errorf("Expected InvalidJWKError, got %T", err)
+	if _, ok := err.(*errors.ValidationError); !ok {
+		t.Errorf("Expected ValidationError, got %T", err)
 	}
 }
 
@@ -813,8 +814,8 @@ func TestJWKS_MissingKid(t *testing.T) {
 		t.Fatal("Expected error for missing kid, but got none")
 	}
 
-	if _, ok := err.(*InvalidJWKError); !ok {
-		t.Errorf("Expected InvalidJWKError, got %T", err)
+	if _, ok := err.(*errors.ValidationError); !ok {
+		t.Errorf("Expected ValidationError, got %T", err)
 	}
 }
 
@@ -832,8 +833,8 @@ func TestJWKS_MissingN(t *testing.T) {
 		t.Fatal("Expected error for missing n, but got none")
 	}
 
-	if _, ok := err.(*InvalidJWKError); !ok {
-		t.Errorf("Expected InvalidJWKError, got %T", err)
+	if _, ok := err.(*errors.ValidationError); !ok {
+		t.Errorf("Expected ValidationError, got %T", err)
 	}
 }
 
@@ -851,8 +852,8 @@ func TestJWKS_MissingE(t *testing.T) {
 		t.Fatal("Expected error for missing e, but got none")
 	}
 
-	if _, ok := err.(*InvalidJWKError); !ok {
-		t.Errorf("Expected InvalidJWKError, got %T", err)
+	if _, ok := err.(*errors.ValidationError); !ok {
+		t.Errorf("Expected ValidationError, got %T", err)
 	}
 }
 
@@ -890,8 +891,8 @@ func TestJWKS_KeysNotAnArray(t *testing.T) {
 		t.Fatal("Expected error for keys not being an array, but got none")
 	}
 
-	if _, ok := err.(*InvalidJWKError); !ok {
-		t.Errorf("Expected InvalidJWKError, got %T", err)
+	if _, ok := err.(*errors.ValidationError); !ok {
+		t.Errorf("Expected ValidationError, got %T", err)
 	}
 }
 
@@ -908,8 +909,8 @@ func TestJWKS_KeysAsString(t *testing.T) {
 		t.Fatal("Expected error for keys being a string, but got none")
 	}
 
-	if _, ok := err.(*InvalidJWKError); !ok {
-		t.Errorf("Expected InvalidJWKError, got %T", err)
+	if _, ok := err.(*errors.ValidationError); !ok {
+		t.Errorf("Expected ValidationError, got %T", err)
 	}
 }
 
@@ -926,7 +927,7 @@ func TestJWKS_JWKNotAnObject(t *testing.T) {
 		t.Fatal("Expected error for JWK not being an object, but got none")
 	}
 
-	if _, ok := err.(*InvalidJWKError); !ok {
-		t.Errorf("Expected InvalidJWKError, got %T", err)
+	if _, ok := err.(*errors.ValidationError); !ok {
+		t.Errorf("Expected ValidationError, got %T", err)
 	}
 }
