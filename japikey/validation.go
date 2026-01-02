@@ -2,6 +2,8 @@ package japikey
 
 import (
 	"strings"
+
+	"github.com/susu-dot-dev/japikey/errors"
 )
 
 // ValidateTokenFormat validates the basic JWT format (header.payload.signature)
@@ -15,26 +17,17 @@ func ValidateHeader(header map[string]interface{}) error {
 	// Check if algorithm is present and is RS256
 	algorithm, ok := header["alg"].(string)
 	if !ok {
-		return &JAPIKeyVerificationError{
-			Message: "token header missing algorithm",
-			Code:    "HeaderValidationError",
-		}
+		return errors.NewValidationError("token header missing algorithm")
 	}
 
 	if algorithm != AlgorithmRS256 {
-		return &JAPIKeyVerificationError{
-			Message: "invalid algorithm: " + algorithm + ", expected " + AlgorithmRS256,
-			Code:    "AlgorithmError",
-		}
+		return errors.NewValidationError("invalid algorithm: " + algorithm + ", expected " + AlgorithmRS256)
 	}
 
 	// Check if key ID is present
 	keyID, ok := header[KeyIDHeader].(string)
 	if !ok || keyID == "" {
-		return &JAPIKeyVerificationError{
-			Message: "token header missing key ID",
-			Code:    "HeaderValidationError",
-		}
+		return errors.NewValidationError("token header missing key ID")
 	}
 
 	return nil
@@ -45,34 +38,22 @@ func ValidatePayload(claims map[string]interface{}) error {
 	// Check if version is present
 	version, ok := claims[VersionClaim].(string)
 	if !ok {
-		return &JAPIKeyVerificationError{
-			Message: "token missing version claim",
-			Code:    "PayloadValidationError",
-		}
+		return errors.NewValidationError("token missing version claim")
 	}
 
 	// Check if version has the correct prefix
 	if !strings.HasPrefix(version, VersionPrefix) {
-		return &JAPIKeyVerificationError{
-			Message: "invalid version format: " + version + ", expected prefix " + VersionPrefix,
-			Code:    "VersionValidationError",
-		}
+		return errors.NewValidationError("invalid version format: " + version + ", expected prefix " + VersionPrefix)
 	}
 
 	// Check if issuer is present
 	issuer, ok := claims[IssuerClaim].(string)
 	if !ok {
-		return &JAPIKeyVerificationError{
-			Message: "token missing issuer claim",
-			Code:    "IssuerValidationError",
-		}
+		return errors.NewValidationError("token missing issuer claim")
 	}
 
 	if issuer == "" {
-		return &JAPIKeyVerificationError{
-			Message: "token issuer claim is empty",
-			Code:    "IssuerValidationError",
-		}
+		return errors.NewValidationError("token issuer claim is empty")
 	}
 
 	return nil

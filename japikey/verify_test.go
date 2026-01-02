@@ -4,14 +4,9 @@ import (
 	"crypto/rsa"
 	"testing"
 	"time"
-)
 
-// MockJWKCallback is a mock implementation of the JWK callback for testing
-func MockJWKCallback(keyID string) (*rsa.PublicKey, error) {
-	// In a real test, we would return an actual public key
-	// For now, we'll return nil to test error handling
-	return nil, nil
-}
+	"github.com/google/uuid"
+)
 
 func TestShouldVerify(t *testing.T) {
 	// Test valid JWT format
@@ -43,9 +38,14 @@ func TestVerifyFunctionExists(t *testing.T) {
 		Timeout:       5 * time.Second,
 	}
 	
+	// Create a mock callback that returns nil
+	mockCallback := func(keyID uuid.UUID) (*rsa.PublicKey, error) {
+		return nil, nil
+	}
+	
 	// We're not testing the actual functionality here, just that the function exists
 	// The actual tests would require valid JWT tokens and keys
-	_, err := Verify("some.token.string", config, MockJWKCallback)
+	_, err := Verify("some.token.string", config, mockCallback)
 	
 	// We expect an error because our mock callback returns nil keys
 	if err == nil {

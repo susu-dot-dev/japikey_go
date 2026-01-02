@@ -7,15 +7,20 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
+	"github.com/susu-dot-dev/japikey/errors"
 )
 
 // createValidToken creates a valid JAPIKey token for testing purposes
-func createValidToken() (string, *rsa.PublicKey, error) {
+func createValidToken() (string, *rsa.PublicKey, uuid.UUID, error) {
 	// Create a private key for signing
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		return "", nil, err
+		return "", nil, uuid.Nil, err
 	}
+
+	// Generate a UUID for the key ID
+	keyID := uuid.MustParse("123e4567-e89b-12d3-a456-426614174000")
 
 	// Create claims
 	claims := jwt.MapClaims{
@@ -28,22 +33,23 @@ func createValidToken() (string, *rsa.PublicKey, error) {
 
 	// Create token
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-	token.Header["kid"] = "123e4567-e89b-12d3-a456-426614174000" // UUID matching issuer
+	token.Header["kid"] = keyID.String() // UUID matching issuer
 
 	// Sign the token
 	tokenString, err := token.SignedString(privateKey)
 	if err != nil {
-		return "", nil, err
+		return "", nil, uuid.Nil, err
 	}
 
-	// Return the token and the public key
-	return tokenString, &privateKey.PublicKey, nil
+	// Return the token, public key, and key ID
+	return tokenString, &privateKey.PublicKey, keyID, nil
 }
 
 // createInvalidToken creates an invalid JAPIKey token for testing purposes
 func createInvalidToken() string {
 	// Create a token with invalid version
 	privateKey, _ := rsa.GenerateKey(rand.Reader, 2048)
+	keyID := uuid.MustParse("123e4567-e89b-12d3-a456-426614174000")
 	claims := jwt.MapClaims{
 		"sub": "test-user",
 		"iss": "https://example.com/123e4567-e89b-12d3-a456-426614174000",
@@ -53,7 +59,7 @@ func createInvalidToken() string {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-	token.Header["kid"] = "123e4567-e89b-12d3-a456-426614174000"
+	token.Header["kid"] = keyID.String()
 
 	tokenString, _ := token.SignedString(privateKey)
 	return tokenString
@@ -61,14 +67,14 @@ func createInvalidToken() string {
 
 // mockKeyFunc creates a mock key function that returns the provided public key
 func mockKeyFunc(pubKey *rsa.PublicKey) JWKCallback {
-	return func(keyID string) (*rsa.PublicKey, error) {
+	return func(keyID uuid.UUID) (*rsa.PublicKey, error) {
 		return pubKey, nil
 	}
 }
 
 func TestVerifyValidToken(t *testing.T) {
 	// Create a valid token and public key
-	tokenString, pubKey, err := createValidToken()
+	tokenString, pubKey, expectedKeyID, err := createValidToken()
 	if err != nil {
 		t.Fatalf("Failed to create valid token: %v", err)
 	}
@@ -93,8 +99,12 @@ func TestVerifyValidToken(t *testing.T) {
 		t.Error("Expected claims to not be nil for valid token")
 	}
 
-	if result.KeyID == "" {
+	if result.KeyID == uuid.Nil {
 		t.Error("Expected key ID to not be empty for valid token")
+	}
+
+	if result.KeyID != expectedKeyID {
+		t.Errorf("Expected key ID %v, got %v", expectedKeyID, result.KeyID)
 	}
 
 	if result.Algorithm == "" {
@@ -127,10 +137,8 @@ func TestVerifyInvalidToken(t *testing.T) {
 	}
 
 	// Check that it's the right type of error
-	if verificationErr, ok := err.(*JAPIKeyVerificationError); !ok {
-		t.Errorf("Expected JAPIKeyVerificationError, got %T", err)
-	} else if verificationErr.Code != VersionValidationError {
-		t.Errorf("Expected error code %s, got %s", VersionValidationError, verificationErr.Code)
+	if _, ok := err.(*errors.ValidationError); !ok {
+		t.Errorf("Expected ValidationError, got %T", err)
 	}
 }
 
@@ -146,7 +154,8 @@ func TestVerifyExpiredToken(t *testing.T) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-	token.Header["kid"] = "123e4567-e89b-12d3-a456-426614174000"
+	keyID := uuid.MustParse("123e4567-e89b-12d3-a456-426614174000")
+	token.Header["kid"] = keyID.String()
 	tokenString, _ := token.SignedString(privateKey)
 	pubKey := &privateKey.PublicKey
 
@@ -167,10 +176,8 @@ func TestVerifyExpiredToken(t *testing.T) {
 	}
 
 	// Check that it's the right type of error
-	if verificationErr, ok := err.(*JAPIKeyVerificationError); !ok {
-		t.Errorf("Expected JAPIKeyVerificationError, got %T", err)
-	} else if verificationErr.Code != ExpirationError {
-		t.Errorf("Expected error code %s, got %s", ExpirationError, verificationErr.Code)
+	if _, ok := err.(*errors.ValidationError); !ok {
+		t.Errorf("Expected ValidationError, got %T", err)
 	}
 }
 
@@ -186,7 +193,8 @@ func TestVerifyTokenWithMismatchedKeyID(t *testing.T) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-	token.Header["kid"] = "different-uuid" // Different from issuer UUID
+	differentKeyID := uuid.MustParse("00000000-0000-0000-0000-000000000000")
+	token.Header["kid"] = differentKeyID.String() // Different from issuer UUID
 	tokenString, _ := token.SignedString(privateKey)
 	pubKey := &privateKey.PublicKey
 
@@ -207,10 +215,8 @@ func TestVerifyTokenWithMismatchedKeyID(t *testing.T) {
 	}
 
 	// Check that it's the right type of error
-	if verificationErr, ok := err.(*JAPIKeyVerificationError); !ok {
-		t.Errorf("Expected JAPIKeyVerificationError, got %T", err)
-	} else if verificationErr.Code != KeyIDMismatchError {
-		t.Errorf("Expected error code %s, got %s", KeyIDMismatchError, verificationErr.Code)
+	if _, ok := err.(*errors.ValidationError); !ok {
+		t.Errorf("Expected ValidationError, got %T", err)
 	}
 }
 
@@ -227,7 +233,8 @@ func TestVerifyTokenWithInvalidAlgorithm(t *testing.T) {
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 	token.Header["alg"] = "HS256" // Set algorithm to HS256 instead of RS256
-	token.Header["kid"] = "123e4567-e89b-12d3-a456-426614174000"
+	keyID := uuid.MustParse("123e4567-e89b-12d3-a456-426614174000")
+	token.Header["kid"] = keyID.String()
 	tokenString, _ := token.SignedString(privateKey)
 	pubKey := &privateKey.PublicKey
 
@@ -248,15 +255,13 @@ func TestVerifyTokenWithInvalidAlgorithm(t *testing.T) {
 	}
 
 	// Check that it's the right type of error
-	if verificationErr, ok := err.(*JAPIKeyVerificationError); !ok {
-		t.Errorf("Expected JAPIKeyVerificationError, got %T", err)
-	} else if verificationErr.Code != AlgorithmError {
-		t.Errorf("Expected error code %s, got %s", AlgorithmError, verificationErr.Code)
+	if _, ok := err.(*errors.ValidationError); !ok {
+		t.Errorf("Expected ValidationError, got %T", err)
 	}
 }
 
 func TestShouldVerifyValidToken(t *testing.T) {
-	tokenString, _, err := createValidToken()
+	tokenString, _, _, err := createValidToken()
 	if err != nil {
 		t.Fatalf("Failed to create valid token: %v", err)
 	}
