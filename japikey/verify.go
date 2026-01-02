@@ -112,7 +112,7 @@ func validateJAPIKeyClaims(claims jwt.MapClaims, baseIssuerURL string, keyID uui
 
 	issuer, err := claims.GetIssuer()
 	if err != nil {
-		return err
+		return japikeyerrors.NewValidationError("Invalid issuer")
 	}
 
 	if err := validateIssuer(issuer, baseIssuerURL, keyID); err != nil {

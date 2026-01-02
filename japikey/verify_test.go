@@ -95,6 +95,7 @@ func TestVerifyValidToken(t *testing.T) {
 
 	if result == nil {
 		t.Error("Expected result to not be nil for valid token")
+		return
 	}
 
 	if result.Claims == nil {
