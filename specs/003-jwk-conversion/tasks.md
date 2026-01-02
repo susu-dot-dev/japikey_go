@@ -51,12 +51,12 @@
 ## Phase 3: Foundational
 **Purpose**: Core infrastructure that the remaining user stories depend on
 
-- [ ] T012 Setup library structure with clear interfaces per Library-First Architecture principle in internal/jwks/
-- [ ] T013 Implement structured error types (InvalidJWK, UnexpectedConversionError, KeyNotFoundError) in japikey/errors.go
-- [ ] T014 Setup internal/jwks package with lowercase field names to enforce encapsulation
-- [ ] T015 Create base JWK and JWKS structs with validation per data-model.md in internal/jwks/jwks.go
-- [ ] T016 Configure custom JSON marshaling/unmarshaling for JWKS format compliance in internal/jwks/jwks.go
-- [ ] T017 Implement Base64urlUInt encoding/decoding functions per RFC 7518 in internal/jwks/jwks.go
+- [x] T012 Setup library structure with clear interfaces per Library-First Architecture principle in internal/jwks/
+- [x] T013 Implement error inheritance model with base JapikeyError type and error categories (ValidationError, ConversionError, KeyNotFoundError, InternalError) in errors/errors.go
+- [x] T014 Setup internal/jwks package with lowercase field names to enforce encapsulation
+- [x] T015 Create base JWK and JWKS structs with validation per data-model.md in internal/jwks/jwks.go
+- [x] T016 Configure custom JSON marshaling/unmarshaling for JWKS format compliance in internal/jwks/jwks.go
+- [x] T017 Implement Base64urlUInt encoding/decoding functions per RFC 7518 in internal/jwks/jwks.go
 
 **Checkpoint**: Foundation ready - user story implementation can now begin
 
@@ -72,29 +72,30 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T018 [US2] Unit test for NewJWKS with valid RSA public key and UUID in internal/jwks/jwks_test.go
-- [ ] T019 [US2] Unit test for NewJWKS with invalid key ID (not UUID) in internal/jwks/jwks_test.go
-- [ ] T020 [US2] Unit test for NewJWKS with null RSA public key in internal/jwks/jwks_test.go
-- [ ] T021 [US2] Unit test for JWKS serialization to JSON in internal/jwks/jwks_test.go
-- [ ] T022 [US2] Unit test for JWKS deserialization from JSON in internal/jwks/jwks_test.go
-- [ ] T023 [US2] Unit test for invalid JSON deserialization in internal/jwks/jwks_test.go
-- [ ] T024 [US2] Unit test for invalid RSA parameters in JSON in internal/jwks/jwks_test.go
-- [ ] T025 [US2] Unit test to validate generated JWKS format using jwx tool in internal/jwks/jwks_test.go
+- [x] T018 [US2] Unit test for NewJWKS with valid RSA public key and UUID in internal/jwks/jwks_test.go
+- [x] T019 [US2] Unit test for NewJWKS with invalid key ID (not UUID) in internal/jwks/jwks_test.go
+- [x] T020 [US2] Unit test for NewJWKS with null RSA public key in internal/jwks/jwks_test.go
+- [x] T021 [US2] Unit test for JWKS serialization to JSON in internal/jwks/jwks_test.go
+- [x] T022 [US2] Unit test for JWKS deserialization from JSON in internal/jwks/jwks_test.go
+- [x] T023 [US2] Unit test for invalid JSON deserialization in internal/jwks/jwks_test.go
+- [x] T024 [US2] Unit test for invalid RSA parameters in JSON in internal/jwks/jwks_test.go
+- [x] T025 [US2] Unit test to validate generated JWKS format using jwx tool in internal/jwks/jwks_test.go
 
 ### Implementation for User Story 2
 
-- [ ] T026 [US2] Implement NewJWKS function in internal/jwks/jwks.go that accepts RSA public key and key ID (FR-001)
-- [ ] T027 [US2] Add validation for key ID (kid) to be valid UUID format in internal/jwks/jwks.go (FR-002)
-- [ ] T028 [US2] Add validation for RSA public key to not be null in internal/jwks/jwks.go (FR-003)
-- [ ] T029 [US2] Implement custom MarshalJSON method for JWKS in internal/jwks/jwks.go (FR-007)
-- [ ] T030 [US2] Implement custom UnmarshalJSON method for JWKS in internal/jwks/jwks.go (FR-007)
-- [ ] T031 [US2] Ensure generated JWKS contains required parameters: kty, kid, n, e in internal/jwks/jwks.go (FR-010-012)
-- [ ] T032 [US2] Validate that kty parameter is "RSA" in internal/jwks/jwks.go (FR-013)
-- [ ] T033 [US2] Validate that n and e parameters are present and properly formatted in internal/jwks/jwks.go (FR-014)
-- [ ] T034 [US2] Ensure JWKS contains exactly one key in internal/jwks/jwks.go (FR-015)
-- [ ] T035 [US2] Validate member names are unique in internal/jwks/jwks.go (FR-016)
-- [ ] T036 [US2] Ensure only supported parameters are accepted in internal/jwks/jwks.go (FR-017-018)
-- [ ] T037 [US2] Implement proper Base64urlUInt encoding for n and e parameters in internal/jwks/jwks.go (FR-025-031)
+- [x] T026 [US2] Implement NewJWKS function in internal/jwks/jwks.go that accepts RSA public key and key ID (FR-001)
+- [x] T027 [US2] Add validation for key ID (kid) to be valid UUID format in internal/jwks/jwks.go (FR-002)
+- [x] T028 [US2] Add validation for RSA public key to not be null in internal/jwks/jwks.go (FR-003)
+- [x] T029 [US2] Implement custom MarshalJSON method for JWKS using encodedJWKS struct in internal/jwks/jwks.go (FR-007)
+- [x] T029a [US2] Implement validateJSONShape helper function using untyped JSON unmarshaling to detect extra fields in internal/jwks/jwks.go (FR-007b, FR-007c)
+- [x] T030 [US2] Implement custom UnmarshalJSON method with two-phase validation (validateJSONShape for untyped validation, then typed unmarshaling with round-trip validation) in internal/jwks/jwks.go (FR-007, FR-007a-FR-007e)
+- [x] T031 [US2] Ensure generated JWKS contains required parameters: kty, kid, n, e in internal/jwks/jwks.go (FR-010-012)
+- [x] T032 [US2] Validate that kty parameter is "RSA" in internal/jwks/jwks.go (FR-013)
+- [x] T033 [US2] Validate that n and e parameters are present and properly formatted in internal/jwks/jwks.go (FR-014)
+- [x] T034 [US2] Ensure JWKS contains exactly one key in internal/jwks/jwks.go (FR-015)
+- [x] T035 [US2] Validate member names are unique in internal/jwks/jwks.go (FR-016)
+- [x] T036 [US2] Ensure only supported parameters are accepted (exactly 4 fields: kty, kid, n, e) via validateJSONShape untyped validation in internal/jwks/jwks.go (FR-017-018, FR-007c)
+- [x] T037 [US2] Implement proper Base64urlUInt encoding for n and e parameters in internal/jwks/jwks.go (FR-025-031)
 
 **Checkpoint**: At this point, User Story 2 should be fully functional and testable independently
 
@@ -108,21 +109,21 @@
 
 ### Tests for User Story 3
 
-- [ ] T038 [US3] Unit test for extracting public key for known key ID in internal/jwks/jwks_test.go
-- [ ] T039 [US3] Unit test for extracting key ID from JWKS in internal/jwks/jwks_test.go
-- [ ] T040 [US3] Unit test for missing key ID error in internal/jwks/jwks_test.go
-- [ ] T041 [US3] Unit test for non-matching key ID error in internal/jwks/jwks_test.go
-- [ ] T042 [US3] Unit test for malformed JWKS error in internal/jwks/jwks_test.go
-- [ ] T043 [US3] Unit test to validate JWKS format using jwx tool in internal/jwks/jwks_test.go
+- [x] T038 [US3] Unit test for extracting public key for known key ID in internal/jwks/jwks_test.go
+- [x] T039 [US3] Unit test for extracting key ID from JWKS in internal/jwks/jwks_test.go
+- [x] T040 [US3] Unit test for missing key ID error in internal/jwks/jwks_test.go
+- [x] T041 [US3] Unit test for non-matching key ID error in internal/jwks/jwks_test.go
+- [x] T042 [US3] Unit test for malformed JWKS error in internal/jwks/jwks_test.go
+- [x] T043 [US3] Unit test to validate JWKS format using jwx tool in internal/jwks/jwks_test.go
 
 ### Implementation for User Story 3
 
-- [ ] T044 [US3] Implement GetPublicKey method to return RSA public key for given key ID in internal/jwks/jwks.go (FR-004)
-- [ ] T045 [US3] Implement GetKeyID method to return the key ID present in JWKS in internal/jwks/jwks.go (FR-005)
-- [ ] T046 [US3] Add validation that key ID in JWKS is valid UUID when extracting it in internal/jwks/jwks.go (FR-008)
-- [ ] T047 [US3] Add validation that public key in JWKS is valid RSA public key when extracting it in internal/jwks/jwks.go (FR-009)
-- [ ] T048 [US3] Implement KeyNotFoundError for when kid is not present in JWKS in japikey/errors.go (FR-049)
-- [ ] T049 [US3] Validate that key ID in JWKS matches requested key ID in internal/jwks/jwks.go (FR-032)
+- [x] T044 [US3] Implement GetPublicKey method to return RSA public key for given key ID in internal/jwks/jwks.go (FR-004)
+- [x] T045 [US3] Implement GetKeyID method to return the key ID present in JWKS in internal/jwks/jwks.go (FR-005)
+- [x] T046 [US3] Add validation that key ID in JWKS is valid UUID when extracting it in internal/jwks/jwks.go (FR-008)
+- [x] T047 [US3] Add validation that public key in JWKS is valid RSA public key when extracting it in internal/jwks/jwks.go (FR-009)
+- [x] T048 [US3] Implement KeyNotFoundError for when kid is not present in JWKS using errors.NewKeyNotFoundError() in internal/jwks/jwks.go (FR-050)
+- [x] T049 [US3] Validate that key ID in JWKS matches requested key ID in internal/jwks/jwks.go (FR-032)
 
 **Checkpoint**: At this point, User Stories 1, 2 AND 3 should all work independently
 
@@ -136,16 +137,16 @@
 
 ### Tests for User Story 4
 
-- [ ] T050 [US4] Unit test for JAPIKey to JWKS conversion with valid inputs in japikey/jwks_test.go
-- [ ] T051 [US4] Unit test for JAPIKey to JWKS conversion with invalid key ID in japikey/jwks_test.go
-- [ ] T052 [US4] Unit test for JAPIKey to JWKS conversion with null public key in japikey/jwks_test.go
-- [ ] T053 [US4] Unit test to validate generated JWKS format using jwx tool in japikey/jwks_test.go
+- [ ] T050 [US4] Unit test for JAPIKey to JWKS conversion with valid inputs in japikey/sign_test.go
+- [ ] T051 [US4] Unit test for JAPIKey to JWKS conversion with invalid key ID in japikey/sign_test.go
+- [ ] T052 [US4] Unit test for JAPIKey to JWKS conversion with null public key in japikey/sign_test.go
+- [ ] T053 [US4] Unit test to validate generated JWKS format using jwx tool in japikey/sign_test.go
 
 ### Implementation for User Story 4
 
-- [ ] T054 [US4] Implement ToJWKS helper method on JAPIKey struct in japikey/japikey.go (FR-035)
-- [ ] T055 [US4] Add validation that JAPIKey contains valid UUID key ID before conversion in japikey/japikey.go (FR-036)
-- [ ] T056 [US4] Add validation that JAPIKey contains valid RSA public key before conversion in japikey/japikey.go (FR-037)
+- [ ] T054 [US4] Implement ToJWKS helper method on JAPIKey struct in japikey/sign.go (FR-035)
+- [ ] T055 [US4] Add validation that JAPIKey contains valid UUID key ID before conversion in japikey/sign.go (FR-036)
+- [ ] T056 [US4] Add validation that JAPIKey contains valid RSA public key before conversion in japikey/sign.go (FR-037)
 
 **Checkpoint**: All user stories should now be independently functional
 

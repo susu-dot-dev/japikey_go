@@ -124,13 +124,41 @@ As a user, I can use the jwx tool which has two commands: parse - which takes a 
 
 ## Requirements *(mandatory)*
 
-### Error Types
+### Error Types and Inheritance Model
 
-The system MUST define and use the following specific error types for JWK operations:
+The system MUST define and use a standardized error inheritance model with a base `JapikeyError` type that provides consistent structure across all error types.
 
-- **InvalidJWK**: Used for all errors when unmarshaling the JSON file (besides standard JSON errors if not a proper JSON format). This includes cases where the JWK structure is invalid, missing required fields, or contains invalid values.
-- **UnexpectedConversionError**: Used when trying to convert a JAPIKey to a JWK and failing. This includes failures during the conversion process that don't fall under other specific error categories.
-- **KeyNotFoundError**: Used when the kid (key ID) is not present in the JWK or JWKS. This occurs when attempting to retrieve a key by a specific ID that doesn't exist in the key set.
+#### Base Error Type: JapikeyError
+
+All error types inherit from `JapikeyError`, which provides:
+- `Code` (string): Error code identifier (e.g., "ValidationError", "ConversionError")
+- `Message` (string): Human-readable error message with contextual details
+
+Errors are constructed using factory functions that automatically set the correct error code:
+- `errors.NewValidationError(message string)`
+- `errors.NewConversionError(message string)`
+- `errors.NewKeyNotFoundError(message string)`
+- `errors.NewInternalError(message string)`
+
+#### Error Categories
+
+The system MUST define and use the following error categories for JWK operations:
+
+- **ValidationError**: Used for all validation failures when unmarshaling JSON files (besides standard JSON format errors), invalid JWK structure, missing required fields, invalid RSA parameters, or invalid key ID format. This is a generic error type with contextual messages rather than many specific error types.
+
+- **ConversionError**: Used when cryptographic operations fail during conversion (e.g., converting JAPIKey to JWK, encoding RSA parameters, round-trip validation failures). This is a generic error type with contextual messages.
+
+- **KeyNotFoundError**: Used when the kid (key ID) is not present in the JWK or JWKS. This error type is kept separate from validation errors because clients may need to handle missing keys differently (e.g., retry with different key, fetch from different source).
+
+- **InternalError**: Used when internal operations fail (e.g., key generation failures, signing failures). This is a generic error type for internal cryptographic operation failures.
+
+#### Error Design Principles
+
+1. **Inheritance Model**: All errors embed `JapikeyError` to ensure consistent structure
+2. **Factory Functions**: Errors are constructed using `New*Error()` functions that set the appropriate code
+3. **Generic Categories**: Use generic error types (ValidationError, ConversionError, InternalError) with contextual messages rather than many specific error types
+4. **Specific Types When Needed**: Only keep unique error types (like KeyNotFoundError) when clients need different behavior based on the error type
+5. **Contextual Messages**: Error messages provide detailed context about what went wrong, allowing clients to understand the specific failure
 
 ### Functional Requirements
 
@@ -141,6 +169,11 @@ The system MUST define and use the following specific error types for JWK operat
 - **FR-005**: System MUST provide methods to retrieve the key ID present in a JWKS
 - **FR-006**: System MUST provide structured error handling using the same pattern as the 002 spec for all validation failures, with standard error codes like InvalidInput and specific error types for cases that callers would want to handle
 - **FR-007**: System MUST implement custom MarshalJSON and UnmarshalJSON methods to convert JWKS to and from JSON format with full control over the serialization format
+- **FR-007a**: System MUST use separate structs for in-memory representation (lowercase fields) and JSON representation (exported fields) to ensure proper encapsulation
+- **FR-007b**: System MUST implement UnmarshalJSON using a two-phase validation process: (1) untyped JSON shape validation to detect extra fields, (2) typed unmarshaling with field validation
+- **FR-007c**: System MUST validate JSON shape before typed unmarshaling by checking: keys array exists with exactly one element, JWK object contains exactly 4 fields (kty, kid, n, e), all required fields are present
+- **FR-007d**: System MUST perform round-trip validation after unmarshaling by comparing encoded n and e values from JSON with re-encoded values from the constructed JWKS, returning ConversionError if mismatch
+- **FR-007e**: System MUST use the NewJWKS constructor during UnmarshalJSON to ensure all validation rules are applied consistently
 - **FR-008**: System MUST validate that the key ID in a JWKS is a valid UUID when extracting it
 - **FR-009**: System MUST validate that the public key in a JWKS is a valid RSA public key when extracting it
 - **FR-010**: System MUST include the "kty" parameter with value "RSA" in the generated JWKS to identify the key type
@@ -148,10 +181,10 @@ The system MUST define and use the following specific error types for JWK operat
 - **FR-012**: System MUST include the RSA-specific parameters "n" (modulus) and "e" (exponent) in the generated JWKS, properly encoded as Base64urlUInt values according to RFC 7518
 - **FR-013**: System MUST validate that the "kty" parameter in a JWKS has value "RSA" when extracting the RSA public key
 - **FR-014**: System MUST validate that the "n" and "e" parameters are present and properly formatted as Base64urlUInt when extracting the RSA public key from a JWKS
-- **FR-015**: System MUST reject JWKS that do not contain exactly one key
+- **FR-015**: System MUST reject JWKS that do not contain exactly one key (validated in Phase 1 of UnmarshalJSON)
 - **FR-016**: System MUST ensure member names within a JWKS are unique and reject JWKS with duplicate member names
 - **FR-017**: System MUST only accept and generate JWKS with the following exact parameters: "kty", "kid", "n", and "e"
-- **FR-018**: System MUST reject JWKS containing any additional parameters beyond the supported ones ("kty", "kid", "n", "e")
+- **FR-018**: System MUST reject JWKS containing any additional parameters beyond the supported ones ("kty", "kid", "n", "e") - validated using untyped JSON unmarshaling in Phase 1 to detect fields that would otherwise be silently ignored
 - **FR-019**: System MUST handle case-sensitive string comparisons for all JWKS parameters
 - **FR-020**: System MUST ensure the generated JWKS follows the JSON object structure as defined in RFC 7517
 - **FR-021**: System MUST validate that the "n" (modulus) parameter in a JWKS is a valid Base64urlUInt-encoded value representing the RSA modulus according to RFC 7518, with proper big-endian representation
@@ -180,19 +213,24 @@ The system MUST define and use the following specific error types for JWK operat
 - **FR-044**: System MUST use a separate package jwks for the JWKS code
 - **FR-045**: System MUST use lowercase variable names in structs to ensure only the jwks package can update the variables
 - **FR-046**: System MUST validate struct data only during construction or unmarshalling, not on every function call
-- **FR-047**: System MUST define and use the InvalidJWK error type for all errors when unmarshaling the JSON file (besides standard JSON errors if not a proper JSON format)
-- **FR-048**: System MUST define and use the UnexpectedConversionError error type when trying to convert a JAPIKey to a JWK and failing
-- **FR-049**: System MUST define and use the KeyNotFoundError error type for when the kid is not present in the JWK
-- **FR-050**: System MUST use UUID data type internally instead of string to enforce that the string, if present, is a UUID
-- **FR-051**: System MUST provide a jwx CLI tool with parse and generate commands for JWK operations
-- **FR-052**: The jwx tool parse command MUST accept a JSON string via stdin and output the single public key as a base64 encoded string via stdout
-- **FR-053**: The jwx tool parse command MUST return an appropriate error message when the input is not a valid JWK
-- **FR-054**: The jwx tool generate command MUST accept a base64 encoded public key via stdin and a UUID argument, and output a JWKS JSON via stdout
-- **FR-055**: The Makefile MUST ensure the jwx CLI tool is built before running tests
-- **FR-056**: Unit tests MUST be able to exec out to the jwx tool to validate the correctness of our JWK implementation
-- **FR-057**: The jwx CLI tool MUST use the lestrrat-go/jwx/jwk library to provide an independent verification oracle
-- **FR-058**: The jwx CLI tool MUST support import, export, and round-trip validation for JWK operations
-- **FR-059**: All compiled files MUST be ignored by the version control system to prevent binaries from being committed to the repository
+- **FR-047**: System MUST define and use a base `JapikeyError` type with `Code` and `Message` fields that all error types inherit from
+- **FR-048**: System MUST define and use `ValidationError` for all validation failures when unmarshaling JSON files (besides standard JSON format errors), invalid JWK structure, missing required fields, invalid RSA parameters, or invalid key ID format
+- **FR-049**: System MUST define and use `ConversionError` when cryptographic operations fail during conversion (e.g., converting JAPIKey to JWK, encoding RSA parameters, round-trip validation failures)
+- **FR-050**: System MUST define and use `KeyNotFoundError` for when the kid is not present in the JWK (kept separate because clients may need different behavior)
+- **FR-051**: System MUST define and use `InternalError` for internal operation failures (e.g., key generation failures, signing failures)
+- **FR-052**: System MUST construct errors using factory functions (e.g., `NewValidationError()`, `NewConversionError()`) that automatically set the appropriate error code
+- **FR-053**: System MUST use generic error categories (ValidationError, ConversionError, InternalError) with contextual messages rather than many specific error types
+- **FR-054**: System MUST only keep unique error types (like KeyNotFoundError) when clients need different behavior based on the error type
+- **FR-055**: System MUST use UUID data type internally instead of string to enforce that the string, if present, is a UUID
+- **FR-056**: System MUST provide a jwx CLI tool with parse and generate commands for JWK operations
+- **FR-057**: The jwx tool parse command MUST accept a JSON string via stdin and output the single public key as a base64 encoded string via stdout
+- **FR-058**: The jwx tool parse command MUST return an appropriate error message when the input is not a valid JWK
+- **FR-059**: The jwx tool generate command MUST accept a base64 encoded public key via stdin and a UUID argument, and output a JWKS JSON via stdout
+- **FR-060**: The Makefile MUST ensure the jwx CLI tool is built before running tests
+- **FR-061**: Unit tests MUST be able to exec out to the jwx tool to validate the correctness of our JWK implementation
+- **FR-062**: The jwx CLI tool MUST use the lestrrat-go/jwx/jwk library to provide an independent verification oracle
+- **FR-063**: The jwx CLI tool MUST support import, export, and round-trip validation for JWK operations
+- **FR-064**: All compiled files MUST be ignored by the version control system to prevent binaries from being committed to the repository
 
 ### Key Entities
 

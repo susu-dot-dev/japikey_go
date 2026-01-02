@@ -24,7 +24,7 @@ The implementation follows an architecture where all JWKS-related code (except t
 **Scale/Scope**: Support for standard RSA key sizes (2048, 4096 bits), UUID key identifiers
 **Immutability Requirements**: Struct variables must be treated as immutable after construction, with validation occurring only at construction or unmarshalling time, not on every function call
 **Package Structure**: JWKS-related code (except external wrapper in japikey.go) must be located in internal/ subdirectory with separate jwks package, using lowercase variable names to enforce encapsulation
-**Error Handling Requirements**: Must define and use specific error types: InvalidJWK for all errors when unmarshaling JSON files (besides standard JSON format errors), UnexpectedConversionError when converting JAPIKey to JWK fails, and KeyNotFoundError when kid is not present in the JWK
+**Error Handling Requirements**: Must define and use a standardized error inheritance model with a base `JapikeyError` type. All errors embed `JapikeyError` and are constructed using factory functions. Error categories include: ValidationError (for validation failures), ConversionError (for conversion failures), KeyNotFoundError (for missing keys - kept separate for client handling), and InternalError (for internal operation failures). Use generic error types with contextual messages rather than many specific error types. Only keep unique error types when clients need different behavior.
 **UUID Validation Requirements**: Must use UUID data type internally instead of string to enforce that the string, if present, is a UUID
 **Verification Tool Requirements**: Must provide a jwx CLI tool with parse and generate commands for verification against the lestrrat-go/jwx/jwk library, with integration into the Makefile and unit tests
 
@@ -36,11 +36,11 @@ The implementation follows an architecture where all JWKS-related code (except t
 
 **Developer Ease of Use**: Implementation includes comprehensive documentation with quickstart guides, clear API examples for every behavior (NewJWKS function, serialization/deserialization, key extraction), and usage examples for common scenarios. The quickstart.md file provides clear examples for all user stories, including specific error handling examples for the new error types.
 
-**Security-First Testing**: Security-focused tests are planned for all core features, including validation of key formats, proper encoding/decoding of cryptographic parameters, and verification that only valid JWKS structures are accepted. Tests cover both security posture and functional correctness, with verification against established libraries using the jwx CLI tool. Tests specifically validate the new error types: InvalidJWK, UnexpectedConversionError, and KeyNotFoundError.
+**Security-First Testing**: Security-focused tests are planned for all core features, including validation of key formats, proper encoding/decoding of cryptographic parameters, and verification that only valid JWKS structures are accepted. Tests cover both security posture and functional correctness, with verification against established libraries using the jwx CLI tool. Tests specifically validate the error inheritance model with base JapikeyError type and error categories: ValidationError, ConversionError, KeyNotFoundError, and InternalError.
 
 **Specification-Driven Development**: Tests are written to validate the specification before implementation begins, ensuring that RFC 7517/7518 compliance is verified and all functional requirements are met. The implementation follows the detailed functional requirements from the specification, with validation occurring only at construction or unmarshalling time rather than on every function call. The specification explicitly defines the new error types and UUID validation requirements.
 
-**Security & Observability**: Security-related events such as invalid JWKS inputs or failed validation attempts are logged with appropriate detail for audit trails, while ensuring that sensitive cryptographic material is not logged. The structured error handling follows the same pattern as the 002 spec, with specific error types for different failure scenarios (InvalidJWK, UnexpectedConversionError, KeyNotFoundError). The UUID data type internally enforces proper UUID format, reducing security risks from malformed identifiers. The jwx CLI tool provides an additional layer of security validation by cross-checking our implementation against the established jwx library.
+**Security & Observability**: Security-related events such as invalid JWKS inputs or failed validation attempts are logged with appropriate detail for audit trails, while ensuring that sensitive cryptographic material is not logged. The structured error handling follows an inheritance model with a base `JapikeyError` type, with specific error categories (ValidationError, ConversionError, KeyNotFoundError, InternalError) for different failure scenarios. Errors are constructed using factory functions that automatically set the appropriate error code. The UUID data type internally enforces proper UUID format, reducing security risks from malformed identifiers. The jwx CLI tool provides an additional layer of security validation by cross-checking our implementation against the established jwx library.
 
 ## Project Structure
 
@@ -60,16 +60,17 @@ specs/003-jwk-conversion/
 
 ```text
 japikey/
-├── jwks.go               # Main JWKS implementation with NewJWKS function, serialization methods
-├── jwks_test.go          # Unit tests for JWKS functionality
-├── errors.go             # Structured error types following 002 spec pattern
-└── japikey.go            # External wrapper for JAPIKey functionality
+├── sign.go               # JAPIKey signing functionality
+├── sign_test.go          # Unit tests for JAPIKey signing
+└── japikey.go            # External wrapper for JAPIKey functionality (re-exports errors from errors package)
 
 internal/
 └── jwks/
     ├── jwks.go           # JWKS implementation with lowercase field names, immutable structs
-    ├── jwks_test.go      # Unit tests for JWKS functionality
-    └── errors.go         # Internal error types for the jwks package
+    └── jwks_test.go      # Unit tests for JWKS functionality
+
+errors/
+└── errors.go             # Centralized error package with base JapikeyError and all error types
 
 jwx/
 └── tool/

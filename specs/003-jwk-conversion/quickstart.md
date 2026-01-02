@@ -120,7 +120,16 @@ make generate-jwks-test-data
 
 ## Error Handling
 
-The library uses structured error handling with specific error types:
+The library uses structured error handling with an inheritance model. All errors inherit from a base `JapikeyError` type and are constructed using factory functions.
+
+### Error Types
+
+- **ValidationError**: Input validation failures (invalid JWK format, invalid RSA parameters, invalid key ID format)
+- **ConversionError**: Cryptographic conversion failures (JAPIKey to JWK conversion, encoding failures)
+- **KeyNotFoundError**: Requested key ID not found in JWKS (kept separate for client-specific handling)
+- **InternalError**: Internal operation failures (key generation, signing failures)
+
+### Error Handling Example
 
 ```go
 import (
@@ -130,22 +139,70 @@ import (
 
 jwks, err := japikey.NewJWKS(publicKey, keyID)
 if err != nil {
-    var invalidJWKErr *japikey.InvalidJWKError
-    var unexpectedConvErr *japikey.UnexpectedConversionError
+    var validationErr *japikey.ValidationError
+    var conversionErr *japikey.ConversionError
     var keyNotFoundErr *japikey.KeyNotFoundError
+    var internalErr *japikey.InternalError
 
-    if errors.As(err, &invalidJWKErr) {
-        // Handle invalid JWK error (e.g., during JSON unmarshaling)
-        log.Printf("Invalid JWK: %v", err)
-    } else if errors.As(err, &unexpectedConvErr) {
-        // Handle unexpected conversion error (e.g., JAPIKey to JWK failure)
-        log.Printf("Unexpected conversion error: %v", err)
+    if errors.As(err, &validationErr) {
+        // Handle validation error (e.g., invalid key ID, invalid JWK format)
+        log.Printf("Validation error: %v", err)
+        // Access error code: validationErr.Code (will be "ValidationError")
+        // Access message: validationErr.Message or err.Error()
+    } else if errors.As(err, &conversionErr) {
+        // Handle conversion error (e.g., JAPIKey to JWK failure, encoding failures)
+        log.Printf("Conversion error: %v", err)
     } else if errors.As(err, &keyNotFoundErr) {
         // Handle key not found error (e.g., kid not present in JWK)
+        // This may require different handling like fetching from another source
         log.Printf("Key not found: %v", err)
+    } else if errors.As(err, &internalErr) {
+        // Handle internal error (e.g., key generation failure)
+        log.Printf("Internal error: %v", err)
     } else {
         // Handle other errors
         log.Printf("Error creating JWKS: %v", err)
+    }
+}
+```
+
+### Error Construction
+
+Errors are constructed using factory functions that automatically set the appropriate error code:
+
+```go
+// In library code:
+if kid == uuid.Nil {
+    return errors.NewValidationError("key ID cannot be empty")
+}
+
+if j.jwk.kid != kid {
+    return errors.NewKeyNotFoundError("key ID not found in JWKS")
+}
+
+if jwks.jwk.n != ejwk.N {
+    return errors.NewConversionError("round-trip validation failed: n values do not match")
+}
+```
+
+### Accessing Error Information
+
+All errors provide both a `Code` and `Message` field:
+
+```go
+if err != nil {
+    // Access the error message
+    message := err.Error() // or err.Message if type-asserted
+    
+    // Type assert to access Code field
+    if japikeyErr, ok := err.(interface{ Code() string }); ok {
+        code := japikeyErr.Code()
+        switch code {
+        case "ValidationError":
+            // Handle validation
+        case "KeyNotFoundError":
+            // Handle missing key (may need different behavior)
+        }
     }
 }
 ```
