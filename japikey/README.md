@@ -56,7 +56,6 @@ func main() {
     // Use the validated claims
     fmt.Printf("Validated claims: %+v\n", result.Claims)
     fmt.Printf("Key ID: %s\n", result.KeyID)
-    fmt.Printf("Algorithm: %s\n", result.Algorithm)
 }
 ```
 
