@@ -280,16 +280,25 @@ func TestVerifyFunctionExists(t *testing.T) {
 }
 
 func TestShouldVerify(t *testing.T) {
-	// Test valid JWT format
-	validToken := "header.payload.signature"
-	if !ShouldVerify(validToken, "https://example.com/") {
-		t.Errorf("ShouldVerify returned false for valid JWT format")
+	// Test with valid token (should pass all validations)
+	tokenString, _, _, err := createValidToken()
+	if err != nil {
+		t.Fatalf("Failed to create valid token: %v", err)
+	}
+	if !ShouldVerify(tokenString, "https://example.com/") {
+		t.Errorf("ShouldVerify returned false for valid token")
 	}
 
-	// Test invalid JWT format (missing part)
+	// Test with invalid token format (not a valid JWT)
 	invalidToken := "header.payload" // only 2 parts
 	if ShouldVerify(invalidToken, "https://example.com/") {
 		t.Errorf("ShouldVerify returned true for invalid JWT format")
+	}
+
+	// Test with invalid version
+	invalidVersionToken := createInvalidToken()
+	if ShouldVerify(invalidVersionToken, "https://example.com/") {
+		t.Errorf("ShouldVerify returned true for token with invalid version")
 	}
 
 	// Test token that exceeds size limit
@@ -329,6 +338,76 @@ func TestShouldVerifyTooLargeToken(t *testing.T) {
 
 	if ShouldVerify(string(largeToken), "https://example.com/") {
 		t.Error("ShouldVerify returned true for too large token")
+	}
+}
+
+func TestShouldVerifyMismatchedKid(t *testing.T) {
+	// Create a token where kid doesn't match the UUID in issuer
+	keyID := uuid.MustParse("123e4567-e89b-12d3-a456-426614174000")
+	differentKeyID := uuid.MustParse("987e6543-e21b-34d5-b789-123456789012")
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("Failed to generate key: %v", err)
+	}
+
+	claims := jwt.MapClaims{
+		"sub": "test-user",
+		"iss": fmt.Sprintf("https://example.com/%s", keyID.String()),
+		"aud": "test-audience",
+		"exp": time.Now().Add(1 * time.Hour).Unix(),
+		"ver": "japikey-v1",
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	token.Header["kid"] = differentKeyID.String() // Different from issuer UUID
+	tokenString, err := token.SignedString(privateKey)
+	if err != nil {
+		t.Fatalf("Failed to sign token: %v", err)
+	}
+
+	if ShouldVerify(tokenString, "https://example.com/") {
+		t.Error("ShouldVerify returned true for token with mismatched kid")
+	}
+}
+
+func TestShouldVerifyInvalidIssuer(t *testing.T) {
+	// Create a token with issuer that doesn't match baseIssuer
+	keyID := uuid.MustParse("123e4567-e89b-12d3-a456-426614174000")
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("Failed to generate key: %v", err)
+	}
+
+	claims := jwt.MapClaims{
+		"sub": "test-user",
+		"iss": fmt.Sprintf("https://different.com/%s", keyID.String()),
+		"aud": "test-audience",
+		"exp": time.Now().Add(1 * time.Hour).Unix(),
+		"ver": "japikey-v1",
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	token.Header["kid"] = keyID.String()
+	tokenString, err := token.SignedString(privateKey)
+	if err != nil {
+		t.Fatalf("Failed to sign token: %v", err)
+	}
+
+	if ShouldVerify(tokenString, "https://example.com/") {
+		t.Error("ShouldVerify returned true for token with issuer not matching baseIssuer")
+	}
+}
+
+func TestShouldVerifyEmptyBaseIssuer(t *testing.T) {
+	// ShouldVerify requires baseIssuer for security - empty baseIssuer should fail
+	tokenString, _, _, err := createValidToken()
+	if err != nil {
+		t.Fatalf("Failed to create valid token: %v", err)
+	}
+
+	// With empty baseIssuer, it should return false (security requirement)
+	if ShouldVerify(tokenString, "") {
+		t.Error("ShouldVerify returned true for token with empty baseIssuer (should require baseIssuer for security)")
 	}
 }
 

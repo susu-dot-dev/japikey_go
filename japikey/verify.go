@@ -37,9 +37,8 @@ type VerifyConfig struct {
 	Timeout time.Duration
 }
 
-// validateJAPIKeyClaims validates JAPIKey-specific requirements on the claims map.
-func validateJAPIKeyClaims(claims jwt.MapClaims, baseIssuerURL string, keyID uuid.UUID) error {
-	// FR-002: Validate version format
+// validateVersion validates the version claim format and number.
+func validateVersion(claims jwt.MapClaims) error {
 	versionRaw, ok := claims[VersionClaim]
 	if !ok {
 		return japikeyerrors.NewValidationError("token missing version claim")
@@ -62,33 +61,102 @@ func validateJAPIKeyClaims(claims jwt.MapClaims, baseIssuerURL string, keyID uui
 		}
 	}
 
-	// FR-003: Validate issuer format
+	return nil
+}
+
+// validateIssuer validates issuer format and extracts the UUID from it.
+// Returns the issuer string and the UUID extracted from it.
+// baseIssuerURL is required for security - issuer validation is mandatory.
+func validateIssuer(claims jwt.MapClaims, baseIssuerURL string) (string, uuid.UUID, error) {
+	if baseIssuerURL == "" {
+		return "", uuid.Nil, japikeyerrors.NewValidationError("base issuer URL is required for issuer validation")
+	}
+
 	issuerRaw, ok := claims[IssuerClaim]
 	if !ok {
-		return japikeyerrors.NewValidationError("token missing issuer claim")
+		return "", uuid.Nil, japikeyerrors.NewValidationError("token missing issuer claim")
 	}
 	issuer, ok := issuerRaw.(string)
 	if !ok {
-		return japikeyerrors.NewValidationError("token issuer claim must be a string")
+		return "", uuid.Nil, japikeyerrors.NewValidationError("token issuer claim must be a string")
 	}
 
-	if baseIssuerURL != "" && !strings.HasPrefix(issuer, baseIssuerURL) {
-		return japikeyerrors.NewValidationError(fmt.Sprintf("invalid issuer: %s, expected to start with %s", issuer, baseIssuerURL))
+	// Normalize baseIssuerURL to always end with /
+	normalizedBaseURL := baseIssuerURL
+	if !strings.HasSuffix(normalizedBaseURL, "/") {
+		normalizedBaseURL += "/"
 	}
 
-	// FR-004: Validate that key ID matches UUID part of issuer
+	// Validate issuer starts with baseIssuerURL
+	if !strings.HasPrefix(issuer, normalizedBaseURL) {
+		return "", uuid.Nil, japikeyerrors.NewValidationError(fmt.Sprintf("invalid issuer: %s, expected to start with %s", issuer, normalizedBaseURL))
+	}
+
+	// Extract UUID from issuer (last part after /)
 	issuerParts := strings.Split(issuer, "/")
-	if len(issuerParts) > 0 {
-		issuerUUIDStr := issuerParts[len(issuerParts)-1]
-		issuerUUID, err := uuid.Parse(issuerUUIDStr)
-		if err != nil {
-			return japikeyerrors.NewValidationError("issuer does not contain a valid UUID")
-		}
-		if issuerUUID != keyID {
-			return japikeyerrors.NewValidationError("key ID in header does not match UUID in issuer")
-		}
+	if len(issuerParts) == 0 {
+		return "", uuid.Nil, japikeyerrors.NewValidationError("issuer does not contain a valid UUID")
+	}
+	issuerUUIDStr := issuerParts[len(issuerParts)-1]
+	issuerUUID, err := uuid.Parse(issuerUUIDStr)
+	if err != nil {
+		return "", uuid.Nil, japikeyerrors.NewValidationError("issuer does not contain a valid UUID")
 	}
 
+	return issuer, issuerUUID, nil
+}
+
+// extractKeyIDFromHeader extracts and validates the key ID from the token header.
+func extractKeyIDFromHeader(header map[string]interface{}) (uuid.UUID, error) {
+	keyIDRaw, ok := header[KeyIDHeader]
+	if !ok {
+		return uuid.Nil, japikeyerrors.NewValidationError("token header missing key ID")
+	}
+
+	keyIDStr, ok := keyIDRaw.(string)
+	if !ok {
+		return uuid.Nil, japikeyerrors.NewValidationError("token header contains invalid key ID type")
+	}
+
+	keyID, err := uuid.Parse(keyIDStr)
+	if err != nil {
+		return uuid.Nil, japikeyerrors.NewValidationError("token header contains invalid key ID format")
+	}
+
+	return keyID, nil
+}
+
+// validateKidMatchesIssuer validates that the key ID matches the UUID extracted from the issuer.
+func validateKidMatchesIssuer(keyID uuid.UUID, issuerUUID uuid.UUID) error {
+	if keyID != issuerUUID {
+		return japikeyerrors.NewValidationError("key ID in header does not match UUID in issuer")
+	}
+	return nil
+}
+
+// validateJAPIKeyClaims validates JAPIKey-specific requirements on the claims map.
+func validateJAPIKeyClaims(claims jwt.MapClaims, baseIssuerURL string, keyID uuid.UUID) error {
+	if err := validateVersion(claims); err != nil {
+		return err
+	}
+
+	_, issuerUUID, err := validateIssuer(claims, baseIssuerURL)
+	if err != nil {
+		return err
+	}
+
+	if err := validateKidMatchesIssuer(keyID, issuerUUID); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// checkTokenSize validates that the token size is within the maximum allowed limit.
+func checkTokenSize(tokenString string) error {
+	if len(tokenString) > MaxTokenSize {
+		return japikeyerrors.NewValidationError(fmt.Sprintf("token size exceeds maximum allowed size of %d bytes", MaxTokenSize))
+	}
 	return nil
 }
 
@@ -96,8 +164,8 @@ func validateJAPIKeyClaims(claims jwt.MapClaims, baseIssuerURL string, keyID uui
 // It either returns the validated claims, or an appropriate error.
 func Verify(tokenString string, config VerifyConfig, keyFunc JWKCallback) (*VerificationResult, error) {
 	// FR-020: Enforce maximum token size limit BEFORE any parsing
-	if len(tokenString) > MaxTokenSize {
-		return nil, japikeyerrors.NewValidationError(fmt.Sprintf("token size exceeds maximum allowed size of %d bytes", MaxTokenSize))
+	if err := checkTokenSize(tokenString); err != nil {
+		return nil, err
 	}
 
 	// FR-014: Use golang-jwt library for parsing and validation
@@ -114,20 +182,10 @@ func Verify(tokenString string, config VerifyConfig, keyFunc JWKCallback) (*Veri
 	var keyID uuid.UUID
 	token, err := parser.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 		// FR-027: Validate key ID is present and properly formatted
-		keyIDRaw, ok := token.Header[KeyIDHeader]
-		if !ok {
-			return nil, japikeyerrors.NewValidationError("token header missing key ID")
-		}
-
-		keyIDStr, ok := keyIDRaw.(string)
-		if !ok {
-			return nil, japikeyerrors.NewValidationError("token header contains invalid key ID type")
-		}
-
-		var parseErr error
-		keyID, parseErr = uuid.Parse(keyIDStr)
-		if parseErr != nil {
-			return nil, japikeyerrors.NewValidationError("token header contains invalid key ID format")
+		var extractErr error
+		keyID, extractErr = extractKeyIDFromHeader(token.Header)
+		if extractErr != nil {
+			return nil, extractErr
 		}
 
 		// Retrieve the public key using the callback
@@ -179,15 +237,41 @@ func Verify(tokenString string, config VerifyConfig, keyFunc JWKCallback) (*Veri
 }
 
 // ShouldVerify is a pre-validation function that checks if a token has the correct format before full verification.
+// It decodes the token without verification and validates version, issuer format, and kid matching.
+// Based on the JavaScript implementation: https://github.com/susu-dot-dev/japikey_js/blob/main/packages/authenticate/src/index.ts
 func ShouldVerify(tokenString string, baseIssuer string) bool {
 	// FR-020: Check token size
 	if len(tokenString) > MaxTokenSize {
 		return false
 	}
 
-	// FR-025: Validate token structure (header.payload.signature)
-	parts := strings.Split(tokenString, ".")
-	if len(parts) != 3 {
+	// Decode token without verification (similar to jose.decodeJwt and jose.decodeProtectedHeader)
+	parser := jwt.NewParser(jwt.WithoutClaimsValidation())
+	claims := jwt.MapClaims{}
+	token, _, err := parser.ParseUnverified(tokenString, claims)
+	if err != nil {
+		return false
+	}
+
+	// Validate version format and number
+	if validateVersion(claims) != nil {
+		return false
+	}
+
+	// Validate issuer format and extract UUID (baseIssuer is required)
+	issuer, issuerUUID, err := validateIssuer(claims, baseIssuer)
+	if err != nil || issuer == "" {
+		return false
+	}
+
+	// Validate kid is present and is a valid UUID
+	keyID, err := extractKeyIDFromHeader(token.Header)
+	if err != nil {
+		return false
+	}
+
+	// Validate that kid matches issuer UUID
+	if keyID != issuerUUID {
 		return false
 	}
 
