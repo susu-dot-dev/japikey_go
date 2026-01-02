@@ -64,17 +64,17 @@
 
 ## Phase 4: User Story 2 - Generate JWKS from Public Key (Priority: P2)
 
-**Goal**: As a user, I can generate a JWKS containing exactly one RS256 key from a public key NewJWK(rsa.publicKey, kid), and I can serialize and deserialize that value to and from JSON. Given an invalid kid, this fails.
+**Goal**: As a user, I can generate a JWKS containing exactly one RS256 key from a public key NewJWKS(rsa.publicKey, kid), and I can serialize and deserialize that value to and from JSON. Given an invalid kid, this fails.
 
-**Independent Test**: Can be fully tested by providing a valid RSA public key and key ID to the NewJWK function, verifying the resulting JWKS contains exactly one RS256 key, and confirming that serialization/deserialization to and from JSON works properly. Also verify that invalid key IDs result in appropriate error responses.
+**Independent Test**: Can be fully tested by providing a valid RSA public key and key ID to the NewJWKS function, verifying the resulting JWKS contains exactly one RS256 key, and confirming that serialization/deserialization to and from JSON works properly. Also verify that invalid key IDs result in appropriate error responses.
 
 ### Tests for User Story 2
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T018 [US2] Unit test for NewJWK with valid RSA public key and UUID in internal/jwks/jwks_test.go
-- [ ] T019 [US2] Unit test for NewJWK with invalid key ID (not UUID) in internal/jwks/jwks_test.go
-- [ ] T020 [US2] Unit test for NewJWK with null RSA public key in internal/jwks/jwks_test.go
+- [ ] T018 [US2] Unit test for NewJWKS with valid RSA public key and UUID in internal/jwks/jwks_test.go
+- [ ] T019 [US2] Unit test for NewJWKS with invalid key ID (not UUID) in internal/jwks/jwks_test.go
+- [ ] T020 [US2] Unit test for NewJWKS with null RSA public key in internal/jwks/jwks_test.go
 - [ ] T021 [US2] Unit test for JWKS serialization to JSON in internal/jwks/jwks_test.go
 - [ ] T022 [US2] Unit test for JWKS deserialization from JSON in internal/jwks/jwks_test.go
 - [ ] T023 [US2] Unit test for invalid JSON deserialization in internal/jwks/jwks_test.go
@@ -83,7 +83,7 @@
 
 ### Implementation for User Story 2
 
-- [ ] T026 [US2] Implement NewJWK function in internal/jwks/jwks.go that accepts RSA public key and key ID (FR-001)
+- [ ] T026 [US2] Implement NewJWKS function in internal/jwks/jwks.go that accepts RSA public key and key ID (FR-001)
 - [ ] T027 [US2] Add validation for key ID (kid) to be valid UUID format in internal/jwks/jwks.go (FR-002)
 - [ ] T028 [US2] Add validation for RSA public key to not be null in internal/jwks/jwks.go (FR-003)
 - [ ] T029 [US2] Implement custom MarshalJSON method for JWKS in internal/jwks/jwks.go (FR-007)

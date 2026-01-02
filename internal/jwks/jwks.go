@@ -11,19 +11,30 @@ import (
 
 // JWK represents the structure of a JSON Web Key
 type JWK struct {
-	kty string    // Always "RSA" to identify the key type
-	kid uuid.UUID // The key identifier (UUID format)
-	n   string    // The RSA modulus encoded as Base64urlUInt
-	e   string    // The RSA exponent encoded as Base64urlUInt
+	kid       uuid.UUID      // The key identifier (UUID format)
+	n         string         // The RSA modulus encoded as Base64urlUInt
+	e         string         // The RSA exponent encoded as Base64urlUInt
+	publicKey *rsa.PublicKey // The RSA public key
 }
 
 // JWKS represents the structure of a JSON Web Key Set
 type JWKS struct {
-	keys []JWK // Array containing exactly one JWK
+	jwk JWK // Since our JWKS can only contain a single key, simplify the in-memory data type
 }
 
-// NewJWK creates a new JWKS containing exactly one RSA key from a public key and key ID
-func NewJWK(publicKey *rsa.PublicKey, kid uuid.UUID) (*JWKS, error) {
+// Represents the JSON on-disk format of a JWKS that we support
+type encodedJWK struct {
+	Kty string    `json:"kty"`
+	Kid uuid.UUID `json:"kid"`
+	N   string    `json:"n"`
+	E   string    `json:"e"`
+}
+type encodedJWKS struct {
+	Keys []encodedJWK `json:"keys"`
+}
+
+// NewJWKS creates a new JWKS containing exactly one RSA key from a public key and key ID
+func NewJWKS(publicKey *rsa.PublicKey, kid uuid.UUID) (*JWKS, error) {
 	// Validate that the public key is not nil
 	if publicKey == nil {
 		return nil, &UnexpectedConversionError{
@@ -47,25 +58,22 @@ func NewJWK(publicKey *rsa.PublicKey, kid uuid.UUID) (*JWKS, error) {
 
 	// Create the JWK
 	jwk := JWK{
-		kty: "RSA",
-		kid: kid,
-		n:   modulusBase64,
-		e:   exponentBase64,
+		kid:       kid,
+		n:         modulusBase64,
+		e:         exponentBase64,
+		publicKey: publicKey,
 	}
 
-	// Validate the JWK
-	if err := jwk.validateJWK(); err != nil {
-		return nil, err
+	if jwk.kid == uuid.Nil {
+		return nil, &InvalidJWKError{
+			Message: "kid parameter cannot be empty",
+			Code:    "InvalidJWK",
+		}
 	}
 
 	// Create the JWKS with the single JWK
 	JWKS := &JWKS{
-		keys: []JWK{jwk},
-	}
-
-	// Validate the JWKS
-	if err := JWKS.validateJWKS(); err != nil {
-		return nil, err
+		jwk,
 	}
 
 	return JWKS, nil
@@ -73,37 +81,67 @@ func NewJWK(publicKey *rsa.PublicKey, kid uuid.UUID) (*JWKS, error) {
 
 // GetPublicKey extracts the RSA public key from the JWKS for a given key ID
 func (j *JWKS) GetPublicKey(kid uuid.UUID) (*rsa.PublicKey, error) {
-	// Validate that we have exactly one key
-	if len(j.keys) != 1 {
-		return nil, &InvalidJWKError{
-			Message: "JWKS must contain exactly one key",
-			Code:    "InvalidJWK",
-		}
-	}
-
-	// Get the single key
-	key := j.keys[0]
-
 	// Validate that the key ID matches the requested one
-	if key.kid != kid {
+	if j.jwk.kid != kid {
 		return nil, &KeyNotFoundError{
 			Message: "key ID not found in JWKS",
 			Code:    "KeyNotFoundError",
 		}
 	}
 
-	// Decode the modulus and exponent from Base64urlUInt
-	modulus, err := base64urlUIntDecode(key.n)
+	return j.jwk.publicKey, nil
+}
+
+// GetKeyID retrieves the key ID present in the JWKS
+func (j *JWKS) GetKeyID() uuid.UUID {
+	return j.jwk.kid
+}
+
+// MarshalJSON implements custom JSON marshaling for JWKS
+func (j *JWKS) MarshalJSON() ([]byte, error) {
+	ejwks := encodedJWKS{
+		Keys: []encodedJWK{
+			{
+				Kty: "RSA",
+				Kid: j.jwk.kid,
+				N:   j.jwk.n,
+				E:   j.jwk.e,
+			},
+		},
+	}
+	return json.Marshal(ejwks)
+}
+
+// UnmarshalJSON implements custom JSON unmarshaling for JWKS
+func (j *JWKS) UnmarshalJSON(data []byte) error {
+	if err := j.validateJSONShape(data); err != nil {
+		return err
+	}
+	ejwks := encodedJWKS{}
+	if err := json.Unmarshal(data, &ejwks); err != nil {
+		return &InvalidJWKError{
+			Message: "invalid JWKS JSON format: " + err.Error(),
+			Code:    "InvalidJWK",
+		}
+	}
+	ejwk := ejwks.Keys[0]
+	if ejwk.Kty != "RSA" {
+		return &InvalidJWKError{
+			Message: "kty parameter must be 'RSA'",
+			Code:    "InvalidJWK",
+		}
+	}
+	modulus, err := base64urlUIntDecode(ejwk.N)
 	if err != nil {
-		return nil, &InvalidJWKError{
+		return &InvalidJWKError{
 			Message: "failed to decode modulus: " + err.Error(),
 			Code:    "InvalidJWK",
 		}
 	}
 
-	exponent, err := base64urlUIntDecode(key.e)
+	exponent, err := base64urlUIntDecode(ejwk.E)
 	if err != nil {
-		return nil, &InvalidJWKError{
+		return &InvalidJWKError{
 			Message: "failed to decode exponent: " + err.Error(),
 			Code:    "InvalidJWK",
 		}
@@ -115,180 +153,65 @@ func (j *JWKS) GetPublicKey(kid uuid.UUID) (*rsa.PublicKey, error) {
 		E: int(exponent.Int64()),
 	}
 
-	return publicKey, nil
-}
+	// Create JWKS using NewJWKS constructor
+	jwks, err := NewJWKS(publicKey, ejwk.Kid)
+	if err != nil {
+		return err
+	}
 
-// GetKeyID retrieves the key ID present in the JWKS
-func (j *JWKS) GetKeyID() (uuid.UUID, error) {
-	// Validate that we have exactly one key
-	if len(j.keys) != 1 {
-		return uuid.Nil, &InvalidJWKError{
-			Message: "JWKS must contain exactly one key",
+	// Validate that the returned JWKS has the same n and e values
+	if jwks.jwk.n != ejwk.N || jwks.jwk.e != ejwk.E {
+		return &UnexpectedConversionError{
+			Message: "round-trip validation failed: n values do not match",
 			Code:    "InvalidJWK",
 		}
 	}
+	j.jwk = jwks.jwk
 
-	// Get the single key
-	key := j.keys[0]
-
-	// Validate that the key ID is a valid UUID
-	if key.kid == uuid.Nil {
-		return uuid.Nil, &InvalidJWKError{
-			Message: "key ID in JWKS is invalid",
-			Code:    "InvalidJWK",
-		}
-	}
-
-	return key.kid, nil
+	return nil
 }
 
-// MarshalJSON implements custom JSON marshaling for JWKS
-func (j *JWKS) MarshalJSON() ([]byte, error) {
-	// Create the external JWKS structure for JSON serialization
-	externalJWKS := struct {
-		Keys []struct {
-			Kty string `json:"kty"`
-			Kid string `json:"kid"`
-			N   string `json:"n"`
-			E   string `json:"e"`
-		} `json:"keys"`
-	}{
-		Keys: make([]struct {
-			Kty string `json:"kty"`
-			Kid string `json:"kid"`
-			N   string `json:"n"`
-			E   string `json:"e"`
-		}, len(j.keys)),
+func (j *JWKS) validateJSONShape(data []byte) error {
+	// In order to safely unmarshal the JWKS, ensuring that there are no
+	// extra fields golang would otherwise ignore, we:
+	// 1. Ensure that the keys[] element exists, and only contains one element
+	// 2. Ensure that the keys[0] element contains exactly the 4 expected fields
+	var jwksUntyped struct {
+		Keys []map[string]interface{} `json:"keys"`
 	}
-
-	// Convert internal JWK structs to external format
-	for i, key := range j.keys {
-		externalJWKS.Keys[i] = struct {
-			Kty string `json:"kty"`
-			Kid string `json:"kid"`
-			N   string `json:"n"`
-			E   string `json:"e"`
-		}{
-			Kty: key.kty,
-			Kid: key.kid.String(),
-			N:   key.n,
-			E:   key.e,
-		}
-	}
-
-	return json.Marshal(externalJWKS)
-}
-
-// UnmarshalJSON implements custom JSON unmarshaling for JWKS
-func (j *JWKS) UnmarshalJSON(data []byte) error {
-	// Define the external JWKS structure for JSON deserialization
-	var externalJWKS struct {
-		Keys []struct {
-			Kty string `json:"kty"`
-			Kid string `json:"kid"`
-			N   string `json:"n"`
-			E   string `json:"e"`
-		} `json:"keys"`
-	}
-
-	if err := json.Unmarshal(data, &externalJWKS); err != nil {
+	if err := json.Unmarshal(data, &jwksUntyped); err != nil {
 		return &InvalidJWKError{
 			Message: "invalid JWKS JSON format: " + err.Error(),
 			Code:    "InvalidJWK",
 		}
 	}
 
-	// Validate that there is exactly one key
-	if len(externalJWKS.Keys) != 1 {
+	// Check that the array has exactly one element
+	if len(jwksUntyped.Keys) != 1 {
 		return &InvalidJWKError{
 			Message: "JWKS must contain exactly one key",
 			Code:    "InvalidJWK",
 		}
 	}
 
-	// Convert the external format to internal JWK struct
-	key := externalJWKS.Keys[0]
-
-	// Parse the UUID
-	parsedUUID, err := uuid.Parse(key.Kid)
-	if err != nil {
+	// Get the single key element
+	jwkUntyped := jwksUntyped.Keys[0]
+	expectedFields := []string{"kty", "kid", "n", "e"}
+	if len(jwkUntyped) != len(expectedFields) {
 		return &InvalidJWKError{
-			Message: "invalid key ID format: " + err.Error(),
+			Message: "JWK must contain exactly 4 fields: kty, kid, n, e",
 			Code:    "InvalidJWK",
 		}
 	}
 
-	// Create the internal JWK
-	jwk := JWK{
-		kty: key.Kty,
-		kid: parsedUUID,
-		n:   key.N,
-		e:   key.E,
-	}
-
-	// Validate the JWK
-	if err := jwk.validateJWK(); err != nil {
-		return err
-	}
-
-	// Set the keys in the JWKS
-	j.keys = []JWK{jwk}
-
-	return nil
-}
-
-// validateJWK validates that the JWK has all required fields and proper values
-func (j *JWK) validateJWK() error {
-	// Validate that kty is "RSA"
-	if j.kty != "RSA" {
-		return &InvalidJWKError{
-			Message: "kty parameter must be 'RSA'",
-			Code:    "InvalidJWK",
+	for _, field := range expectedFields {
+		if _, exists := jwkUntyped[field]; !exists {
+			return &InvalidJWKError{
+				Message: "JWK must contain '" + field + "' field",
+				Code:    "InvalidJWK",
+			}
 		}
 	}
-
-	// Validate that kid is a valid UUID (this is always true since it's uuid.UUID type)
-	// But we can check if it's the zero value
-	if j.kid == uuid.Nil {
-		return &InvalidJWKError{
-			Message: "kid parameter cannot be empty",
-			Code:    "InvalidJWK",
-		}
-	}
-
-	// Validate that n and e are not empty
-	if j.n == "" {
-		return &InvalidJWKError{
-			Message: "n parameter cannot be empty",
-			Code:    "InvalidJWK",
-		}
-	}
-
-	if j.e == "" {
-		return &InvalidJWKError{
-			Message: "e parameter cannot be empty",
-			Code:    "InvalidJWK",
-		}
-	}
-
-	return nil
-}
-
-// validateJWKS validates that the JWKS has proper structure
-func (j *JWKS) validateJWKS() error {
-	// Validate that JWKS contains exactly one key
-	if len(j.keys) != 1 {
-		return &InvalidJWKError{
-			Message: "JWKS must contain exactly one key",
-			Code:    "InvalidJWK",
-		}
-	}
-
-	// Validate the single JWK
-	if err := j.keys[0].validateJWK(); err != nil {
-		return err
-	}
-
 	return nil
 }
 

@@ -23,7 +23,7 @@ func TestNewJWK_WithValidRSAKeyAndUUID_ReturnsValidJWKS(t *testing.T) {
 	keyID := uuid.New()
 
 	// Act
-	jwks, err := NewJWK(publicKey, keyID)
+	jwks, err := NewJWKS(publicKey, keyID)
 
 	// Assert
 	if err != nil {
@@ -34,15 +34,7 @@ func TestNewJWK_WithValidRSAKeyAndUUID_ReturnsValidJWKS(t *testing.T) {
 		t.Fatal("Expected JWKS to not be nil")
 	}
 
-	if len(jwks.keys) != 1 {
-		t.Errorf("Expected JWKS to contain exactly 1 key, got %d", len(jwks.keys))
-	}
-
-	key := jwks.keys[0]
-	if key.kty != "RSA" {
-		t.Errorf("Expected kty to be 'RSA', got '%s'", key.kty)
-	}
-
+	key := jwks.jwk
 	if key.kid != keyID {
 		t.Errorf("Expected kid to be '%s', got '%s'", keyID, key.kid)
 	}
@@ -110,7 +102,7 @@ func TestNewJWK_WithInvalidKeyID_ReturnsError(t *testing.T) {
 	invalidKeyID := uuid.Nil // This is an invalid key ID
 
 	// Act
-	jwks, err := NewJWK(publicKey, invalidKeyID)
+	jwks, err := NewJWKS(publicKey, invalidKeyID)
 
 	// Assert
 	if err == nil {
@@ -132,7 +124,7 @@ func TestNewJWK_WithNullRSAPublicKey_ReturnsError(t *testing.T) {
 	keyID := uuid.New()
 
 	// Act
-	jwks, err := NewJWK(nil, keyID)
+	jwks, err := NewJWKS(nil, keyID)
 
 	// Assert
 	if err == nil {
@@ -158,7 +150,7 @@ func TestJWKS_SerializationToJSON(t *testing.T) {
 	publicKey := &privateKey.PublicKey
 	keyID := uuid.New()
 
-	jwks, err := NewJWK(publicKey, keyID)
+	jwks, err := NewJWKS(publicKey, keyID)
 	if err != nil {
 		t.Fatalf("Failed to create JWKS: %v", err)
 	}
@@ -227,15 +219,7 @@ func TestJWKS_DeserializationFromJSON(t *testing.T) {
 		t.Fatalf("Expected no error during unmarshaling, but got: %v", err)
 	}
 
-	if len(jwks.keys) != 1 {
-		t.Fatalf("Expected JWKS to contain exactly 1 key, got %d", len(jwks.keys))
-	}
-
-	key := jwks.keys[0]
-	if key.kty != "RSA" {
-		t.Errorf("Expected kty to be 'RSA', got '%s'", key.kty)
-	}
-
+	key := jwks.jwk
 	if key.kid != keyID {
 		t.Errorf("Expected kid to be '%s', got '%s'", keyID, key.kid)
 	}
@@ -339,7 +323,7 @@ func TestJWKS_SerializationDeserializationRoundTrip(t *testing.T) {
 	publicKey := &privateKey.PublicKey
 	keyID := uuid.New()
 
-	originalJWKS, err := NewJWK(publicKey, keyID)
+	originalJWKS, err := NewJWKS(publicKey, keyID)
 	if err != nil {
 		t.Fatalf("Failed to create original JWKS: %v", err)
 	}
@@ -358,16 +342,8 @@ func TestJWKS_SerializationDeserializationRoundTrip(t *testing.T) {
 	}
 
 	// Assert - Compare original and round-tripped JWKS
-	if len(roundTripJWKS.keys) != 1 {
-		t.Fatalf("Expected round-trip JWKS to contain exactly 1 key, got %d", len(roundTripJWKS.keys))
-	}
-
-	origKey := originalJWKS.keys[0]
-	rtKey := roundTripJWKS.keys[0]
-
-	if origKey.kty != rtKey.kty {
-		t.Errorf("Expected kty to match after round-trip: %s != %s", origKey.kty, rtKey.kty)
-	}
+	origKey := originalJWKS.jwk
+	rtKey := roundTripJWKS.jwk
 
 	if origKey.kid != rtKey.kid {
 		t.Errorf("Expected kid to match after round-trip: %s != %s", origKey.kid, rtKey.kid)
@@ -411,7 +387,7 @@ func TestJWKS_PublicKeyRoundTrip(t *testing.T) {
 	keyID := uuid.New()
 
 	// Act: Create JWKS from the public key
-	jwks, err := NewJWK(originalPublicKey, keyID)
+	jwks, err := NewJWKS(originalPublicKey, keyID)
 	if err != nil {
 		t.Fatalf("Failed to create JWKS: %v", err)
 	}
@@ -432,8 +408,8 @@ func TestJWKS_PublicKeyRoundTrip(t *testing.T) {
 	}
 
 	// Verify that the n and e parameters in the JWKS match the original key
-	key := jwks.keys[0]
-	
+	key := jwks.jwk
+
 	// Decode the n parameter and compare with original modulus
 	modulusBytes, err := base64.RawURLEncoding.DecodeString(key.n)
 	if err != nil {
@@ -474,7 +450,7 @@ func TestJWKS_ValidateAgainstJWXTool(t *testing.T) {
 	keyID := uuid.New()
 
 	// Act: Create JWKS from the public key
-	jwks, err := NewJWK(publicKey, keyID)
+	jwks, err := NewJWKS(publicKey, keyID)
 	if err != nil {
 		t.Fatalf("Failed to create JWKS: %v", err)
 	}
@@ -512,9 +488,9 @@ func TestJWKS_ValidateAgainstJWXTool(t *testing.T) {
 	if err != nil {
 		// Check if the error is due to the jwx tool not being available
 		if strings.Contains(string(output), "command not found") ||
-		   strings.Contains(string(output), "cannot find") ||
-		   strings.Contains(err.Error(), "executable file not found") ||
-		   strings.Contains(string(output), "No such file or directory") {
+			strings.Contains(string(output), "cannot find") ||
+			strings.Contains(err.Error(), "executable file not found") ||
+			strings.Contains(string(output), "No such file or directory") {
 			t.Skip("jwx tool not available, skipping validation test")
 		}
 
@@ -540,7 +516,7 @@ func TestJWKS_GetPublicKey_WithValidKeyID(t *testing.T) {
 	publicKey := &privateKey.PublicKey
 	keyID := uuid.New()
 
-	jwks, err := NewJWK(publicKey, keyID)
+	jwks, err := NewJWKS(publicKey, keyID)
 	if err != nil {
 		t.Fatalf("Failed to create JWKS: %v", err)
 	}
@@ -576,7 +552,7 @@ func TestJWKS_GetPublicKey_WithInvalidKeyID(t *testing.T) {
 	keyID := uuid.New()
 	wrongKeyID := uuid.New()
 
-	jwks, err := NewJWK(publicKey, keyID)
+	jwks, err := NewJWKS(publicKey, keyID)
 	if err != nil {
 		t.Fatalf("Failed to create JWKS: %v", err)
 	}
@@ -608,19 +584,15 @@ func TestJWKS_GetKeyID(t *testing.T) {
 	publicKey := &privateKey.PublicKey
 	keyID := uuid.New()
 
-	jwks, err := NewJWK(publicKey, keyID)
+	jwks, err := NewJWKS(publicKey, keyID)
 	if err != nil {
 		t.Fatalf("Failed to create JWKS: %v", err)
 	}
 
 	// Act
-	retrievedKeyID, err := jwks.GetKeyID()
+	retrievedKeyID := jwks.GetKeyID()
 
 	// Assert
-	if err != nil {
-		t.Fatalf("Expected no error when getting key ID, but got: %v", err)
-	}
-
 	if retrievedKeyID != keyID {
 		t.Errorf("Expected key ID to match original, but got %s, expected %s", retrievedKeyID, keyID)
 	}
@@ -630,31 +602,19 @@ func TestJWKS_GetKeyID_WithInvalidJWKS(t *testing.T) {
 	// Arrange
 	// Create an invalid JWKS with an empty key ID
 	jwks := &JWKS{
-		keys: []JWK{
-			{
-				kty: "RSA",
-				kid: uuid.Nil, // Invalid empty UUID
-				n:   "some_n_value",
-				e:   "some_e_value",
-			},
+		jwk: JWK{
+			kid: uuid.Nil, // Invalid empty UUID
+			n:   "some_n_value",
+			e:   "some_e_value",
 		},
 	}
 
 	// Act
-	retrievedKeyID, err := jwks.GetKeyID()
+	retrievedKeyID := jwks.GetKeyID()
 
 	// Assert
-	if err == nil {
-		t.Fatal("Expected error when getting key ID from invalid JWKS, but got none")
-	}
-
 	if retrievedKeyID != uuid.Nil {
 		t.Errorf("Expected key ID to be empty when JWKS is invalid, but got %s", retrievedKeyID)
-	}
-
-	// Verify the error type is correct
-	if _, ok := err.(*InvalidJWKError); !ok {
-		t.Errorf("Expected InvalidJWKError, got %T", err)
 	}
 }
 
@@ -667,12 +627,12 @@ func TestJWKS_Base64urlUIntEncoding(t *testing.T) {
 	publicKey := &privateKey.PublicKey
 	keyID := uuid.New()
 
-	jwks, err := NewJWK(publicKey, keyID)
+	jwks, err := NewJWKS(publicKey, keyID)
 	if err != nil {
 		t.Fatalf("Failed to create JWKS: %v", err)
 	}
 
-	key := jwks.keys[0]
+	key := jwks.jwk
 
 	// Verify that n and e are properly encoded as Base64urlUInt
 	// According to RFC 7518, Base64urlUInt encoding should not have padding
@@ -711,7 +671,7 @@ func TestJWKS_ZeroValueEncoding(t *testing.T) {
 	// Test edge case: if we had a zero value, it should be encoded as "AA"
 	// This is more of a theoretical test since RSA keys won't have zero values
 	// but we can test our encoding/decoding functions directly
-	
+
 	// This test is more for completeness since we have the base64urlUIntEncode/Decode functions
 	// In practice, RSA modulus and exponent won't be zero
 }
@@ -725,4 +685,248 @@ func isValidBase64url(s string) bool {
 		}
 	}
 	return true
+}
+
+func TestJWKS_ExtraKeysInJWK(t *testing.T) {
+	// Arrange: JSON with extra keys in the JWK
+	keyID := uuid.New()
+	jsonStr := `{"keys":[{"kty":"RSA","kid":"` + keyID.String() + `","n":"0vx7agoebGcQSuuPiLJXZptN9nndrQmbPFRP_gdM_X7zVFQ84l8g7hQg-jC6SGODpEcF7yR3xNgQBKzAV-OdSQ","e":"AQAB","extra":"field"}]}`
+
+	// Act
+	var jwks JWKS
+	err := json.Unmarshal([]byte(jsonStr), &jwks)
+
+	// Assert
+	if err == nil {
+		t.Fatal("Expected error for extra keys in JWK, but got none")
+	}
+
+	if _, ok := err.(*InvalidJWKError); !ok {
+		t.Errorf("Expected InvalidJWKError, got %T", err)
+	}
+}
+
+func TestJWKS_WrongTypeForKty(t *testing.T) {
+	// Arrange: JSON with kty as a number instead of string
+	keyID := uuid.New()
+	jsonStr := `{"keys":[{"kty":123,"kid":"` + keyID.String() + `","n":"0vx7agoebGcQSuuPiLJXZptN9nndrQmbPFRP_gdM_X7zVFQ84l8g7hQg-jC6SGODpEcF7yR3xNgQBKzAV-OdSQ","e":"AQAB"}]}`
+
+	// Act
+	var jwks JWKS
+	err := json.Unmarshal([]byte(jsonStr), &jwks)
+
+	// Assert
+	if err == nil {
+		t.Fatal("Expected error for wrong type for kty, but got none")
+	}
+
+	if _, ok := err.(*InvalidJWKError); !ok {
+		t.Errorf("Expected InvalidJWKError, got %T", err)
+	}
+}
+
+func TestJWKS_WrongTypeForKid(t *testing.T) {
+	// Arrange: JSON with kid as a number instead of string
+	jsonStr := `{"keys":[{"kty":"RSA","kid":123,"n":"0vx7agoebGcQSuuPiLJXZptN9nndrQmbPFRP_gdM_X7zVFQ84l8g7hQg-jC6SGODpEcF7yR3xNgQBKzAV-OdSQ","e":"AQAB"}]}`
+
+	// Act
+	var jwks JWKS
+	err := json.Unmarshal([]byte(jsonStr), &jwks)
+
+	// Assert
+	if err == nil {
+		t.Fatal("Expected error for wrong type for kid, but got none")
+	}
+
+	if _, ok := err.(*InvalidJWKError); !ok {
+		t.Errorf("Expected InvalidJWKError, got %T", err)
+	}
+}
+
+func TestJWKS_WrongTypeForN(t *testing.T) {
+	// Arrange: JSON with n as a number instead of string
+	keyID := uuid.New()
+	jsonStr := `{"keys":[{"kty":"RSA","kid":"` + keyID.String() + `","n":12345,"e":"AQAB"}]}`
+
+	// Act
+	var jwks JWKS
+	err := json.Unmarshal([]byte(jsonStr), &jwks)
+
+	// Assert
+	if err == nil {
+		t.Fatal("Expected error for wrong type for n, but got none")
+	}
+
+	if _, ok := err.(*InvalidJWKError); !ok {
+		t.Errorf("Expected InvalidJWKError, got %T", err)
+	}
+}
+
+func TestJWKS_WrongTypeForE(t *testing.T) {
+	// Arrange: JSON with e as a number instead of string
+	keyID := uuid.New()
+	jsonStr := `{"keys":[{"kty":"RSA","kid":"` + keyID.String() + `","n":"0vx7agoebGcQSuuPiLJXZptN9nndrQmbPFRP_gdM_X7zVFQ84l8g7hQg-jC6SGODpEcF7yR3xNgQBKzAV-OdSQ","e":65537}]}`
+
+	// Act
+	var jwks JWKS
+	err := json.Unmarshal([]byte(jsonStr), &jwks)
+
+	// Assert
+	if err == nil {
+		t.Fatal("Expected error for wrong type for e, but got none")
+	}
+
+	if _, ok := err.(*InvalidJWKError); !ok {
+		t.Errorf("Expected InvalidJWKError, got %T", err)
+	}
+}
+
+func TestJWKS_MissingKty(t *testing.T) {
+	// Arrange: JSON missing kty field
+	keyID := uuid.New()
+	jsonStr := `{"keys":[{"kid":"` + keyID.String() + `","n":"0vx7agoebGcQSuuPiLJXZptN9nndrQmbPFRP_gdM_X7zVFQ84l8g7hQg-jC6SGODpEcF7yR3xNgQBKzAV-OdSQ","e":"AQAB"}]}`
+
+	// Act
+	var jwks JWKS
+	err := json.Unmarshal([]byte(jsonStr), &jwks)
+
+	// Assert
+	if err == nil {
+		t.Fatal("Expected error for missing kty, but got none")
+	}
+
+	if _, ok := err.(*InvalidJWKError); !ok {
+		t.Errorf("Expected InvalidJWKError, got %T", err)
+	}
+}
+
+func TestJWKS_MissingKid(t *testing.T) {
+	// Arrange: JSON missing kid field
+	jsonStr := `{"keys":[{"kty":"RSA","n":"0vx7agoebGcQSuuPiLJXZptN9nndrQmbPFRP_gdM_X7zVFQ84l8g7hQg-jC6SGODpEcF7yR3xNgQBKzAV-OdSQ","e":"AQAB"}]}`
+
+	// Act
+	var jwks JWKS
+	err := json.Unmarshal([]byte(jsonStr), &jwks)
+
+	// Assert
+	if err == nil {
+		t.Fatal("Expected error for missing kid, but got none")
+	}
+
+	if _, ok := err.(*InvalidJWKError); !ok {
+		t.Errorf("Expected InvalidJWKError, got %T", err)
+	}
+}
+
+func TestJWKS_MissingN(t *testing.T) {
+	// Arrange: JSON missing n field
+	keyID := uuid.New()
+	jsonStr := `{"keys":[{"kty":"RSA","kid":"` + keyID.String() + `","e":"AQAB"}]}`
+
+	// Act
+	var jwks JWKS
+	err := json.Unmarshal([]byte(jsonStr), &jwks)
+
+	// Assert
+	if err == nil {
+		t.Fatal("Expected error for missing n, but got none")
+	}
+
+	if _, ok := err.(*InvalidJWKError); !ok {
+		t.Errorf("Expected InvalidJWKError, got %T", err)
+	}
+}
+
+func TestJWKS_MissingE(t *testing.T) {
+	// Arrange: JSON missing e field
+	keyID := uuid.New()
+	jsonStr := `{"keys":[{"kty":"RSA","kid":"` + keyID.String() + `","n":"0vx7agoebGcQSuuPiLJXZptN9nndrQmbPFRP_gdM_X7zVFQ84l8g7hQg-jC6SGODpEcF7yR3xNgQBKzAV-OdSQ"}]}`
+
+	// Act
+	var jwks JWKS
+	err := json.Unmarshal([]byte(jsonStr), &jwks)
+
+	// Assert
+	if err == nil {
+		t.Fatal("Expected error for missing e, but got none")
+	}
+
+	if _, ok := err.(*InvalidJWKError); !ok {
+		t.Errorf("Expected InvalidJWKError, got %T", err)
+	}
+}
+
+func TestJWKS_ExtraTopLevelKeys(t *testing.T) {
+	// Arrange: JSON with extra top-level keys (should be allowed)
+	keyID := uuid.New()
+	jsonStr := `{"keys":[{"kty":"RSA","kid":"` + keyID.String() + `","n":"0vx7agoebGcQSuuPiLJXZptN9nndrQmbPFRP_gdM_X7zVFQ84l8g7hQg-jC6SGODpEcF7yR3xNgQBKzAV-OdSQ","e":"AQAB"}],"extra":"field"}`
+
+	// Act
+	var jwks JWKS
+	err := json.Unmarshal([]byte(jsonStr), &jwks)
+
+	// Assert
+	if err != nil {
+		t.Fatalf("Expected no error for extra top-level keys, but got: %v", err)
+	}
+
+	// Verify that the JWKS was still unmarshaled correctly
+	if jwks.jwk.kid != keyID {
+		t.Errorf("Expected kid to be '%s', got '%s'", keyID, jwks.jwk.kid)
+	}
+}
+
+func TestJWKS_KeysNotAnArray(t *testing.T) {
+	// Arrange: JSON with keys as an object instead of array
+	keyID := uuid.New()
+	jsonStr := `{"keys":{"kty":"RSA","kid":"` + keyID.String() + `","n":"0vx7agoebGcQSuuPiLJXZptN9nndrQmbPFRP_gdM_X7zVFQ84l8g7hQg-jC6SGODpEcF7yR3xNgQBKzAV-OdSQ","e":"AQAB"}}`
+
+	// Act
+	var jwks JWKS
+	err := json.Unmarshal([]byte(jsonStr), &jwks)
+
+	// Assert
+	if err == nil {
+		t.Fatal("Expected error for keys not being an array, but got none")
+	}
+
+	if _, ok := err.(*InvalidJWKError); !ok {
+		t.Errorf("Expected InvalidJWKError, got %T", err)
+	}
+}
+
+func TestJWKS_KeysAsString(t *testing.T) {
+	// Arrange: JSON with keys as a string instead of array
+	jsonStr := `{"keys":"not an array"}`
+
+	// Act
+	var jwks JWKS
+	err := json.Unmarshal([]byte(jsonStr), &jwks)
+
+	// Assert
+	if err == nil {
+		t.Fatal("Expected error for keys being a string, but got none")
+	}
+
+	if _, ok := err.(*InvalidJWKError); !ok {
+		t.Errorf("Expected InvalidJWKError, got %T", err)
+	}
+}
+
+func TestJWKS_JWKNotAnObject(t *testing.T) {
+	// Arrange: JSON with JWK as a string instead of object
+	jsonStr := `{"keys":["not an object"]}`
+
+	// Act
+	var jwks JWKS
+	err := json.Unmarshal([]byte(jsonStr), &jwks)
+
+	// Assert
+	if err == nil {
+		t.Fatal("Expected error for JWK not being an object, but got none")
+	}
+
+	if _, ok := err.(*InvalidJWKError); !ok {
+		t.Errorf("Expected InvalidJWKError, got %T", err)
+	}
 }
