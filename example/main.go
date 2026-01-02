@@ -21,12 +21,10 @@ func main() {
 	result, err := japikey.NewJAPIKey(config)
 	if err != nil {
 		// Handle error appropriately
-		if validationErr, ok := err.(*japikey.JAPIKeyValidationError); ok {
-			fmt.Printf("Validation error: %s\n", validationErr.Message)
-		} else if genErr, ok := err.(*japikey.JAPIKeyGenerationError); ok {
-			fmt.Printf("Generation error: %s\n", genErr.Message)
-		} else if signingErr, ok := err.(*japikey.JAPIKeySigningError); ok {
-			fmt.Printf("Signing error: %s\n", signingErr.Message)
+		if validationErr, ok := err.(*japikey.ValidationError); ok {
+			fmt.Printf("Validation error: %s\n", validationErr.Error())
+		} else if internalErr, ok := err.(*japikey.InternalError); ok {
+			fmt.Printf("Internal error: %s\n", internalErr.Error())
 		}
 		log.Fatal(err)
 	}
