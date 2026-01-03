@@ -45,3 +45,4 @@ example/jwks.json
 
 # Agent files
 .opencode
+.qwen
