@@ -93,6 +93,8 @@ As an operator of a JAPIKey system, I want to configure the cache duration for J
 - How does the system handle malformed key IDs that might be injection attacks?
 - **What happens when the public key in the database is corrupted or malformed?** → Handled by the database abstraction implementation, which returns `*rsa.PublicKey` type. The middleware does not handle this case directly.
 - How does the system handle extremely high request rates (rate limiting)? **Out of scope - rate limiting is handled by the application at the router/gateway level**
+- **What happens when request processing exceeds timeout?** → Returns 503 Service Unavailable with timeout error message
+- **How should database connection pooling and concurrency control be handled?** → Delegated to DatabaseDriver implementation
 
 ## Requirements *(mandatory)*
 
@@ -121,6 +123,12 @@ As an operator of a JAPIKey system, I want to configure the cache duration for J
 - **FR-021**: System MUST provide clear error messages for all failure scenarios
 - **FR-022**: System MUST follow the japikey error conventions for consistent error responses across the library
 - **FR-023**: System MUST log errors for all 500-class status responses (500, 503) for debugging and monitoring purposes
+- **FR-024**: System MUST accept JWKSRouterConfig struct with DB, MaxAgeSeconds, Timeout fields
+- **FR-025**: System MUST validate DB field is non-nil and return error if nil
+- **FR-026**: System MUST apply 5-second default when Timeout field is zero value
+- **FR-027**: System MUST embed JWKSRouterConfig in JWKSHandler struct
+- **FR-028**: System MUST use context.WithTimeout for entire HTTP handler scope
+- **FR-029**: System MUST return 503 Service Unavailable when timeout is exceeded
 
 ### Error Handling Requirements
 
@@ -138,18 +146,29 @@ The system MUST implement the following error handling behaviors:
   - **Status Code**: 503 (Service Unavailable) when database is temporarily down, 500 (Internal Server Error) for other database errors
   - **Response**: JSON error object with error type and message
 
+- **TimeoutError**: Returned when request processing exceeds configured timeout
+  - **Status Code**: 503 (Service Unavailable)
+  - **Response**: JSON error object with timeout error type and message
+
 ### API Interface
 
 The system MUST provide a function with the following signature:
 
 ```go
-func CreateJWKSRouter(db DatabaseDriver, maxAgeSeconds int) http.Handler
+type JWKSRouterConfig struct {
+    DB            DatabaseDriver  // Required - provides key lookup functionality
+    MaxAgeSeconds int           // Optional cache duration. 0 = no caching, negative values clamped to 0
+    Timeout       time.Duration   // Optional request timeout. 0 = 5-second default applied
+}
+
+func CreateJWKSRouter(config JWKSRouterConfig) (http.Handler, error)
 ```
 
 Where:
-- `db`: A database driver interface that provides key lookup functionality
-- `maxAgeSeconds`: Optional cache duration in seconds (0 means no caching, negative values are clamped to 0)
-- Returns: An HTTP handler that can be mounted to handle JWKS requests
+- `config.DB`: A database driver interface that provides key lookup functionality (required)
+- `config.MaxAgeSeconds`: Optional cache duration in seconds (0 means no caching, negative values are clamped to 0)
+- `config.Timeout`: Optional request timeout duration (0 = 5-second default applied)
+- Returns: An HTTP handler that can be mounted to handle JWKS requests, and an error if config.DB is nil
 
 ### Database Interface Requirement
 
@@ -192,6 +211,9 @@ This flexibility allows applications to choose a base path that fits their URL s
 - **SC-008**: The endpoint handles concurrent requests for the same key ID without race conditions or database corruption
 - **SC-009**: 100% of JWKS responses are valid according to RFC 7517 standards and can be parsed by standard JWT libraries
 - **SC-010**: The endpoint treats revoked keys identically to non-existent keys, ensuring revocation is immediately effective
+- **SC-011**: Requests exceeding configured timeout return 503 Service Unavailable
+- **SC-012**: The middleware applies 5-second default timeout when not specified
+- **SC-013**: Database connection pooling and concurrency control are delegated to the DatabaseDriver implementation
 
 ### Assumptions
 

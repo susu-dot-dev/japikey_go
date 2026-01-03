@@ -65,6 +65,8 @@ type DatabaseDriver = middleware.DatabaseDriver
 
 type KeyLookupResult = middleware.KeyLookupResult
 
-func CreateJWKSRouter(db DatabaseDriver, maxAgeSeconds int) http.Handler {
-	return middleware.CreateJWKSRouter(db, maxAgeSeconds)
+type JWKSRouterConfig = middleware.JWKSRouterConfig
+
+func CreateJWKSRouter(config JWKSRouterConfig) (http.Handler, error) {
+	return middleware.CreateJWKSRouter(config)
 }

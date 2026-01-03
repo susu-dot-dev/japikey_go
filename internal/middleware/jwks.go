@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/susu-dot-dev/japikey/errors"
@@ -23,27 +24,35 @@ type ErrorResponse struct {
 	Message string `json:"message"`
 }
 
+type JWKSRouterConfig struct {
+	DB            DatabaseDriver
+	MaxAgeSeconds int           // 0 = no caching, negative values clamped to 0
+	Timeout       time.Duration // 0 = 5-second default applied
+}
+
 type DatabaseDriver interface {
 	GetKey(ctx context.Context, kid string) (*KeyLookupResult, error)
 }
 
 type JWKSHandler struct {
-	db            DatabaseDriver
-	maxAgeSeconds int
+	JWKSRouterConfig
 }
 
-func CreateJWKSRouter(db DatabaseDriver, maxAgeSeconds int) http.Handler {
-	clampedMaxAge := clampMaxAge(maxAgeSeconds)
-
-	handler := &JWKSHandler{
-		db:            db,
-		maxAgeSeconds: clampedMaxAge,
+func CreateJWKSRouter(config JWKSRouterConfig) (http.Handler, error) {
+	if config.DB == nil {
+		return nil, errors.NewValidationError("DatabaseDriver is required")
 	}
+	if config.Timeout <= 0 {
+		config.Timeout = 5 * time.Second
+	}
+	config.MaxAgeSeconds = clampMaxAge(config.MaxAgeSeconds)
+
+	handler := &JWKSHandler{JWKSRouterConfig: config}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/{kid}/.well-known/jwks.json", handler.ServeHTTP)
 
-	return mux
+	return mux, nil
 }
 
 func clampMaxAge(maxAge int) int {
@@ -61,15 +70,29 @@ func sendErrorResponse(w http.ResponseWriter, statusCode int, code, message stri
 }
 
 func (h *JWKSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), h.Timeout)
+	defer cancel()
+
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "max-age="+strconv.Itoa(h.maxAgeSeconds))
+	w.Header().Set("Cache-Control", "max-age="+strconv.Itoa(h.MaxAgeSeconds))
+
+	select {
+	case <-ctx.Done():
+		if ctx.Err() == context.DeadlineExceeded {
+			sendErrorResponse(w, http.StatusServiceUnavailable, "Timeout", "Request timeout")
+			return
+		}
+	default:
+	}
 
 	kid := r.PathValue("kid")
 
-	ctx := r.Context()
-
-	result, err := h.db.GetKey(ctx, kid)
+	result, err := h.DB.GetKey(ctx, kid)
 	if err != nil {
+		if err == context.DeadlineExceeded {
+			sendErrorResponse(w, http.StatusServiceUnavailable, "Timeout", "Request timeout")
+			return
+		}
 		switch err.(type) {
 		case *errors.KeyNotFoundError:
 			sendErrorResponse(w, http.StatusNotFound, "KeyNotFoundError", "API key not found")

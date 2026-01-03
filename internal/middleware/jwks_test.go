@@ -38,7 +38,14 @@ func TestJWKSEndpoint_ValidKey_Returns200(t *testing.T) {
 		},
 	}
 
-	handler := CreateJWKSRouter(mockDB, 300)
+	handler, err := CreateJWKSRouter(JWKSRouterConfig{
+		DB:            mockDB,
+		MaxAgeSeconds: 300,
+		Timeout:       5 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create handler: %v", err)
+	}
 
 	req, _ := http.NewRequest("GET", "/"+kid.String()+"/.well-known/jwks.json", nil)
 	rr := httptest.NewRecorder()
@@ -79,7 +86,15 @@ func TestJWKSEndpoint_CacheControlHeader(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := CreateJWKSRouter(mockDB, tt.maxAge)
+			handler, err := CreateJWKSRouter(JWKSRouterConfig{
+				DB:            mockDB,
+				MaxAgeSeconds: tt.maxAge,
+				Timeout:       5 * time.Second,
+			})
+			if err != nil {
+				t.Fatalf("Failed to create handler: %v", err)
+			}
+
 			req, _ := http.NewRequest("GET", "/"+kid.String()+"/.well-known/jwks.json", nil)
 			rr := httptest.NewRecorder()
 
@@ -102,7 +117,15 @@ func TestJWKSEndpoint_CacheControlHeader(t *testing.T) {
 
 	for _, tt := range negativeTests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := CreateJWKSRouter(mockDB, tt.maxAge)
+			handler, err := CreateJWKSRouter(JWKSRouterConfig{
+				DB:            mockDB,
+				MaxAgeSeconds: tt.maxAge,
+				Timeout:       5 * time.Second,
+			})
+			if err != nil {
+				t.Fatalf("Failed to create handler: %v", err)
+			}
+
 			req, _ := http.NewRequest("GET", "/"+kid.String()+"/.well-known/jwks.json", nil)
 			rr := httptest.NewRecorder()
 
@@ -129,7 +152,14 @@ func TestJWKSEndpoint_ContainsExactlyOneKey(t *testing.T) {
 		},
 	}
 
-	handler := CreateJWKSRouter(mockDB, 300)
+	handler, err := CreateJWKSRouter(JWKSRouterConfig{
+		DB:            mockDB,
+		MaxAgeSeconds: 300,
+		Timeout:       5 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create handler: %v", err)
+	}
 
 	req, _ := http.NewRequest("GET", "/"+kid.String()+"/.well-known/jwks.json", nil)
 	rr := httptest.NewRecorder()
@@ -140,7 +170,7 @@ func TestJWKSEndpoint_ContainsExactlyOneKey(t *testing.T) {
 		Keys []map[string]interface{} `json:"keys"`
 	}
 
-	err := json.Unmarshal(rr.Body.Bytes(), &jwksResponse)
+	err = json.Unmarshal(rr.Body.Bytes(), &jwksResponse)
 	if err != nil {
 		t.Fatalf("Failed to parse JWKS response: %v", err)
 	}
@@ -172,7 +202,14 @@ func TestJWKSEndpoint_ValidRFC7517Format(t *testing.T) {
 		},
 	}
 
-	handler := CreateJWKSRouter(mockDB, 300)
+	handler, err := CreateJWKSRouter(JWKSRouterConfig{
+		DB:            mockDB,
+		MaxAgeSeconds: 300,
+		Timeout:       5 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create handler: %v", err)
+	}
 
 	req, _ := http.NewRequest("GET", "/"+kid.String()+"/.well-known/jwks.json", nil)
 	rr := httptest.NewRecorder()
@@ -180,7 +217,7 @@ func TestJWKSEndpoint_ValidRFC7517Format(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	var jwksResponse map[string]interface{}
-	err := json.Unmarshal(rr.Body.Bytes(), &jwksResponse)
+	err = json.Unmarshal(rr.Body.Bytes(), &jwksResponse)
 	if err != nil {
 		t.Fatalf("Failed to parse JWKS as JSON: %v", err)
 	}
@@ -204,7 +241,14 @@ func TestJWKSEndpoint_ResponseTime(t *testing.T) {
 		},
 	}
 
-	handler := CreateJWKSRouter(mockDB, 300)
+	handler, err := CreateJWKSRouter(JWKSRouterConfig{
+		DB:            mockDB,
+		MaxAgeSeconds: 300,
+		Timeout:       5 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create handler: %v", err)
+	}
 
 	req, _ := http.NewRequest("GET", "/"+kid.String()+"/.well-known/jwks.json", nil)
 
@@ -227,7 +271,14 @@ func TestJWKSEndpoint_NonExistentKey_Returns404(t *testing.T) {
 		},
 	}
 
-	handler := CreateJWKSRouter(mockDB, 300)
+	handler, err := CreateJWKSRouter(JWKSRouterConfig{
+		DB:            mockDB,
+		MaxAgeSeconds: 300,
+		Timeout:       5 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create handler: %v", err)
+	}
 
 	req, _ := http.NewRequest("GET", "/"+kid.String()+"/.well-known/jwks.json", nil)
 	rr := httptest.NewRecorder()
@@ -252,7 +303,14 @@ func TestJWKSEndpoint_NonExistentKey_ContainsKeyNotFoundError(t *testing.T) {
 		},
 	}
 
-	handler := CreateJWKSRouter(mockDB, 300)
+	handler, err := CreateJWKSRouter(JWKSRouterConfig{
+		DB:            mockDB,
+		MaxAgeSeconds: 300,
+		Timeout:       5 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create handler: %v", err)
+	}
 
 	req, _ := http.NewRequest("GET", "/"+kid.String()+"/.well-known/jwks.json", nil)
 	rr := httptest.NewRecorder()
@@ -264,7 +322,7 @@ func TestJWKSEndpoint_NonExistentKey_ContainsKeyNotFoundError(t *testing.T) {
 		Message string `json:"message"`
 	}
 
-	err := json.Unmarshal(rr.Body.Bytes(), &errorResponse)
+	err = json.Unmarshal(rr.Body.Bytes(), &errorResponse)
 	if err != nil {
 		t.Fatalf("Failed to parse error response: %v", err)
 	}
@@ -283,7 +341,14 @@ func TestJWKSEndpoint_NonExistentKey_ProperJSONStructure(t *testing.T) {
 		},
 	}
 
-	handler := CreateJWKSRouter(mockDB, 300)
+	handler, err := CreateJWKSRouter(JWKSRouterConfig{
+		DB:            mockDB,
+		MaxAgeSeconds: 300,
+		Timeout:       5 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create handler: %v", err)
+	}
 
 	req, _ := http.NewRequest("GET", "/"+kid.String()+"/.well-known/jwks.json", nil)
 	rr := httptest.NewRecorder()
@@ -291,7 +356,7 @@ func TestJWKSEndpoint_NonExistentKey_ProperJSONStructure(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	var errorResponse map[string]interface{}
-	err := json.Unmarshal(rr.Body.Bytes(), &errorResponse)
+	err = json.Unmarshal(rr.Body.Bytes(), &errorResponse)
 	if err != nil {
 		t.Fatalf("Failed to parse error response as JSON: %v", err)
 	}
@@ -317,7 +382,14 @@ func TestJWKSEndpoint_NonExistentKey_NoDatabaseModifications(t *testing.T) {
 		},
 	}
 
-	handler := CreateJWKSRouter(mockDB, 300)
+	handler, err := CreateJWKSRouter(JWKSRouterConfig{
+		DB:            mockDB,
+		MaxAgeSeconds: 300,
+		Timeout:       5 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create handler: %v", err)
+	}
 
 	req, _ := http.NewRequest("GET", "/"+kid.String()+"/.well-known/jwks.json", nil)
 	rr := httptest.NewRecorder()
@@ -343,7 +415,14 @@ func TestJWKSEndpoint_RevokedKey_Returns404(t *testing.T) {
 		},
 	}
 
-	handler := CreateJWKSRouter(mockDB, 300)
+	handler, err := CreateJWKSRouter(JWKSRouterConfig{
+		DB:            mockDB,
+		MaxAgeSeconds: 300,
+		Timeout:       5 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create handler: %v", err)
+	}
 
 	req, _ := http.NewRequest("GET", "/"+kid.String()+"/.well-known/jwks.json", nil)
 	rr := httptest.NewRecorder()
@@ -369,7 +448,15 @@ func TestJWKSEndpoint_RevokedKey_IdenticalToNonExistent(t *testing.T) {
 		},
 	}
 
-	handler := CreateJWKSRouter(mockDBRevoked, 300)
+	handler, err := CreateJWKSRouter(JWKSRouterConfig{
+		DB:            mockDBRevoked,
+		MaxAgeSeconds: 300,
+		Timeout:       5 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create handler: %v", err)
+	}
+
 	req, _ := http.NewRequest("GET", "/"+kid.String()+"/.well-known/jwks.json", nil)
 	rrRevoked := httptest.NewRecorder()
 	handler.ServeHTTP(rrRevoked, req)
@@ -380,7 +467,15 @@ func TestJWKSEndpoint_RevokedKey_IdenticalToNonExistent(t *testing.T) {
 		},
 	}
 
-	handler2 := CreateJWKSRouter(mockDBNotFound, 300)
+	handler2, err := CreateJWKSRouter(JWKSRouterConfig{
+		DB:            mockDBNotFound,
+		MaxAgeSeconds: 300,
+		Timeout:       5 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create handler: %v", err)
+	}
+
 	rrNotFound := httptest.NewRecorder()
 	handler2.ServeHTTP(rrNotFound, req)
 
@@ -407,7 +502,14 @@ func TestJWKSEndpoint_RevokedKey_NeverReturnsValidJWKS(t *testing.T) {
 		},
 	}
 
-	handler := CreateJWKSRouter(mockDB, 300)
+	handler, err := CreateJWKSRouter(JWKSRouterConfig{
+		DB:            mockDB,
+		MaxAgeSeconds: 300,
+		Timeout:       5 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create handler: %v", err)
+	}
 
 	req, _ := http.NewRequest("GET", "/"+kid.String()+"/.well-known/jwks.json", nil)
 	rr := httptest.NewRecorder()
@@ -415,7 +517,7 @@ func TestJWKSEndpoint_RevokedKey_NeverReturnsValidJWKS(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	var jwksResponse map[string]interface{}
-	err := json.Unmarshal(rr.Body.Bytes(), &jwksResponse)
+	err = json.Unmarshal(rr.Body.Bytes(), &jwksResponse)
 	if err != nil {
 		t.Fatalf("Failed to parse revoked key response: %v", err)
 	}
@@ -438,7 +540,14 @@ func TestJWKSEndpoint_DatabaseTimeout_Returns503(t *testing.T) {
 		},
 	}
 
-	handler := CreateJWKSRouter(mockDB, 300)
+	handler, err := CreateJWKSRouter(JWKSRouterConfig{
+		DB:            mockDB,
+		MaxAgeSeconds: 300,
+		Timeout:       5 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create handler: %v", err)
+	}
 
 	req, _ := http.NewRequest("GET", "/"+kid.String()+"/.well-known/jwks.json", nil)
 	rr := httptest.NewRecorder()
@@ -454,7 +563,7 @@ func TestJWKSEndpoint_DatabaseTimeout_Returns503(t *testing.T) {
 		Message string `json:"message"`
 	}
 
-	err := json.Unmarshal(rr.Body.Bytes(), &errorResponse)
+	err = json.Unmarshal(rr.Body.Bytes(), &errorResponse)
 	if err != nil {
 		t.Fatalf("Failed to parse error response: %v", err)
 	}
@@ -473,7 +582,14 @@ func TestJWKSEndpoint_DatabaseUnavailable_Returns503(t *testing.T) {
 		},
 	}
 
-	handler := CreateJWKSRouter(mockDB, 300)
+	handler, err := CreateJWKSRouter(JWKSRouterConfig{
+		DB:            mockDB,
+		MaxAgeSeconds: 300,
+		Timeout:       5 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create handler: %v", err)
+	}
 
 	req, _ := http.NewRequest("GET", "/"+kid.String()+"/.well-known/jwks.json", nil)
 	rr := httptest.NewRecorder()
@@ -489,7 +605,7 @@ func TestJWKSEndpoint_DatabaseUnavailable_Returns503(t *testing.T) {
 		Message string `json:"message"`
 	}
 
-	err := json.Unmarshal(rr.Body.Bytes(), &errorResponse)
+	err = json.Unmarshal(rr.Body.Bytes(), &errorResponse)
 	if err != nil {
 		t.Fatalf("Failed to parse error response: %v", err)
 	}
@@ -508,7 +624,14 @@ func TestJWKSEndpoint_OtherDatabaseErrors_Returns500(t *testing.T) {
 		},
 	}
 
-	handler := CreateJWKSRouter(mockDB, 300)
+	handler, err := CreateJWKSRouter(JWKSRouterConfig{
+		DB:            mockDB,
+		MaxAgeSeconds: 300,
+		Timeout:       5 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create handler: %v", err)
+	}
 
 	req, _ := http.NewRequest("GET", "/"+kid.String()+"/.well-known/jwks.json", nil)
 	rr := httptest.NewRecorder()
@@ -524,7 +647,7 @@ func TestJWKSEndpoint_OtherDatabaseErrors_Returns500(t *testing.T) {
 		Message string `json:"message"`
 	}
 
-	err := json.Unmarshal(rr.Body.Bytes(), &errorResponse)
+	err = json.Unmarshal(rr.Body.Bytes(), &errorResponse)
 	if err != nil {
 		t.Fatalf("Failed to parse error response: %v", err)
 	}
@@ -543,7 +666,14 @@ func TestJWKSEndpoint_500ClassErrors_Logged(t *testing.T) {
 		},
 	}
 
-	handler := CreateJWKSRouter(mockDB, 300)
+	handler, err := CreateJWKSRouter(JWKSRouterConfig{
+		DB:            mockDB,
+		MaxAgeSeconds: 300,
+		Timeout:       5 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create handler: %v", err)
+	}
 
 	req, _ := http.NewRequest("GET", "/"+kid.String()+"/.well-known/jwks.json", nil)
 	rr := httptest.NewRecorder()
@@ -571,7 +701,14 @@ func TestJWKSEndpoint_InvalidKidFormat_Returns404(t *testing.T) {
 		},
 	}
 
-	handler := CreateJWKSRouter(mockDB, 300)
+	handler, err := CreateJWKSRouter(JWKSRouterConfig{
+		DB:            mockDB,
+		MaxAgeSeconds: 300,
+		Timeout:       5 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create handler: %v", err)
+	}
 
 	req, _ := http.NewRequest("GET", "/invalid-uuid/.well-known/jwks.json", nil)
 	rr := httptest.NewRecorder()
@@ -595,7 +732,14 @@ func TestJWKSEndpoint_EmptyKid_Returns404(t *testing.T) {
 		},
 	}
 
-	handler := CreateJWKSRouter(mockDB, 300)
+	handler, err := CreateJWKSRouter(JWKSRouterConfig{
+		DB:            mockDB,
+		MaxAgeSeconds: 300,
+		Timeout:       5 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create handler: %v", err)
+	}
 
 	req, _ := http.NewRequest("GET", "//.well-known/jwks.json", nil)
 	rr := httptest.NewRecorder()
@@ -621,7 +765,14 @@ func TestJWKSEndpoint_ConcurrentRequests_Safe(t *testing.T) {
 		},
 	}
 
-	handler := CreateJWKSRouter(mockDB, 300)
+	handler, err := CreateJWKSRouter(JWKSRouterConfig{
+		DB:            mockDB,
+		MaxAgeSeconds: 300,
+		Timeout:       5 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create handler: %v", err)
+	}
 
 	concurrency := 100
 	done := make(chan bool, concurrency)
@@ -659,7 +810,14 @@ func TestJWKSEndpoint_NoPrivateKeyExposed(t *testing.T) {
 		},
 	}
 
-	handler := CreateJWKSRouter(mockDB, 300)
+	handler, err := CreateJWKSRouter(JWKSRouterConfig{
+		DB:            mockDB,
+		MaxAgeSeconds: 300,
+		Timeout:       5 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create handler: %v", err)
+	}
 
 	req, _ := http.NewRequest("GET", "/"+kid.String()+"/.well-known/jwks.json", nil)
 	rr := httptest.NewRecorder()
@@ -667,7 +825,7 @@ func TestJWKSEndpoint_NoPrivateKeyExposed(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	var jwksResponse map[string]interface{}
-	err := json.Unmarshal(rr.Body.Bytes(), &jwksResponse)
+	err = json.Unmarshal(rr.Body.Bytes(), &jwksResponse)
 	if err != nil {
 		t.Fatalf("Failed to parse JWKS response: %v", err)
 	}
@@ -716,7 +874,14 @@ func TestJWKSEndpoint_ContentTypeAlwaysJSON(t *testing.T) {
 				},
 			}
 
-			handler := CreateJWKSRouter(mockDB, 300)
+			handler, err := CreateJWKSRouter(JWKSRouterConfig{
+				DB:            mockDB,
+				MaxAgeSeconds: 300,
+				Timeout:       5 * time.Second,
+			})
+			if err != nil {
+				t.Fatalf("Failed to create handler: %v", err)
+			}
 
 			req, _ := http.NewRequest("GET", "/"+tt.kid+"/.well-known/jwks.json", nil)
 			rr := httptest.NewRecorder()
@@ -744,7 +909,14 @@ func TestJWKSEndpoint_OnlyOneKeyInResponse(t *testing.T) {
 		},
 	}
 
-	handler := CreateJWKSRouter(mockDB, 300)
+	handler, err := CreateJWKSRouter(JWKSRouterConfig{
+		DB:            mockDB,
+		MaxAgeSeconds: 300,
+		Timeout:       5 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create handler: %v", err)
+	}
 
 	req, _ := http.NewRequest("GET", "/"+kid.String()+"/.well-known/jwks.json", nil)
 	rr := httptest.NewRecorder()
@@ -755,12 +927,145 @@ func TestJWKSEndpoint_OnlyOneKeyInResponse(t *testing.T) {
 		Keys []interface{} `json:"keys"`
 	}
 
-	err := json.Unmarshal(rr.Body.Bytes(), &jwksResponse)
+	err = json.Unmarshal(rr.Body.Bytes(), &jwksResponse)
 	if err != nil {
 		t.Fatalf("Failed to parse JWKS response: %v", err)
 	}
 
 	if len(jwksResponse.Keys) != 1 {
 		t.Errorf("Expected exactly 1 key in response, got %d", len(jwksResponse.Keys))
+	}
+}
+
+func TestJWKSEndpoint_ConfigValidation_DBNil_ReturnsError(t *testing.T) {
+	_, err := CreateJWKSRouter(JWKSRouterConfig{
+		MaxAgeSeconds: 300,
+		Timeout:       5 * time.Second,
+	})
+
+	if err == nil {
+		t.Errorf("Expected error when DB is nil, got nil")
+	}
+
+	if _, ok := err.(*errors.ValidationError); !ok {
+		t.Errorf("Expected ValidationError, got %T", err)
+	}
+}
+
+func TestJWKSEndpoint_DefaultTimeout_5SecondsApplied(t *testing.T) {
+	publicKey := &rsa.PublicKey{
+		N: new(big.Int).SetInt64(12345),
+		E: 65537,
+	}
+
+	kid := uuid.New()
+
+	mockDB := &MockDatabaseDriver{
+		GetKeyFunc: func(ctx context.Context, _ string) (*KeyLookupResult, error) {
+			return &KeyLookupResult{PublicKey: publicKey, Revoked: false}, nil
+		},
+	}
+
+	handler, err := CreateJWKSRouter(JWKSRouterConfig{
+		DB:            mockDB,
+		MaxAgeSeconds: 300,
+		Timeout:       0,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create handler: %v", err)
+	}
+
+	req, _ := http.NewRequest("GET", "/"+kid.String()+"/.well-known/jwks.json", nil)
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected status 200 with default timeout, got %d", rr.Code)
+	}
+}
+
+func TestJWKSEndpoint_TimeoutExceeded_Returns503(t *testing.T) {
+	kid := uuid.New()
+
+	mockDB := &MockDatabaseDriver{
+		GetKeyFunc: func(ctx context.Context, _ string) (*KeyLookupResult, error) {
+			<-ctx.Done()
+			return nil, context.DeadlineExceeded
+		},
+	}
+
+	handler, err := CreateJWKSRouter(JWKSRouterConfig{
+		DB:            mockDB,
+		MaxAgeSeconds: 300,
+		Timeout:       10 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create handler: %v", err)
+	}
+
+	req, _ := http.NewRequest("GET", "/"+kid.String()+"/.well-known/jwks.json", nil)
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Errorf("Expected status 503 for timeout, got %d", rr.Code)
+	}
+
+	var errorResponse struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	}
+
+	err = json.Unmarshal(rr.Body.Bytes(), &errorResponse)
+	if err != nil {
+		t.Fatalf("Failed to parse error response: %v", err)
+	}
+
+	if errorResponse.Code != "Timeout" {
+		t.Errorf("Expected error code Timeout, got %s", errorResponse.Code)
+	}
+
+	if errorResponse.Message != "Request timeout" {
+		t.Errorf("Expected error message 'Request timeout', got %s", errorResponse.Message)
+	}
+}
+
+func TestJWKSEndpoint_TimeoutWithCustomValue_UsesCustomTimeout(t *testing.T) {
+	kid := uuid.New()
+	timeoutTriggered := false
+
+	mockDB := &MockDatabaseDriver{
+		GetKeyFunc: func(ctx context.Context, _ string) (*KeyLookupResult, error) {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(200 * time.Millisecond):
+				return &KeyLookupResult{}, nil
+			}
+		},
+	}
+
+	handler, err := CreateJWKSRouter(JWKSRouterConfig{
+		DB:            mockDB,
+		MaxAgeSeconds: 300,
+		Timeout:       100 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create handler: %v", err)
+	}
+
+	req, _ := http.NewRequest("GET", "/"+kid.String()+"/.well-known/jwks.json", nil)
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code == http.StatusServiceUnavailable {
+		timeoutTriggered = true
+	}
+
+	if !timeoutTriggered {
+		t.Errorf("Expected timeout to trigger with 100ms timeout but 200ms delay")
 	}
 }
