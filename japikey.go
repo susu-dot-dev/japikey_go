@@ -5,10 +5,12 @@ package japikey
 
 import (
 	"crypto/rsa"
+	"net/http"
 
 	"github.com/google/uuid"
 	"github.com/susu-dot-dev/japikey/errors"
 	"github.com/susu-dot-dev/japikey/internal/jwks"
+	"github.com/susu-dot-dev/japikey/internal/middleware"
 	"github.com/susu-dot-dev/japikey/japikey"
 )
 
@@ -57,4 +59,14 @@ func Verify(tokenString string, config VerifyConfig, keyFunc JWKCallback) (*Veri
 // ShouldVerify is a pre-validation function that checks if a token has the correct format before full verification.
 func ShouldVerify(tokenString string, baseIssuer string) bool {
 	return japikey.ShouldVerify(tokenString, baseIssuer)
+}
+
+type DatabaseDriver = middleware.DatabaseDriver
+
+type KeyLookupResult = middleware.KeyLookupResult
+
+type JWKSRouterConfig = middleware.JWKSRouterConfig
+
+func CreateJWKSRouter(config JWKSRouterConfig) (http.Handler, error) {
+	return middleware.CreateJWKSRouter(config)
 }

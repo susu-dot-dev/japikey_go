@@ -63,6 +63,31 @@ func NewInternalError(message string) *InternalError {
 	}
 }
 
+type DatabaseTimeoutError struct {
+	JapikeyError
+}
+
+func NewDatabaseTimeoutError(message string) *DatabaseTimeoutError {
+	return &DatabaseTimeoutError{
+		JapikeyError: JapikeyError{
+			Code:    "DatabaseTimeout",
+			Message: message,
+		},
+	}
+}
+
+type DatabaseUnavailableError struct {
+	JapikeyError
+}
+
+func NewDatabaseUnavailableError(message string) *DatabaseUnavailableError {
+	return &DatabaseUnavailableError{
+		JapikeyError: JapikeyError{
+			Code:    "DatabaseUnavailable",
+			Message: message,
+		},
+	}
+}
 
 // TokenExpiredError is kept separate because clients may need different behavior
 // (e.g., refresh token, redirect to login)

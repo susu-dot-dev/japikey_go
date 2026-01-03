@@ -41,3 +41,7 @@ coverage.out
 
 # Generated test files
 example/jwks.json
+
+
+# Agent files
+.opencode

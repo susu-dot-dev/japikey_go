@@ -84,11 +84,11 @@
 
 ### Functional Requirements
 
-- **FR-001**: System MUST implement all features as standalone libraries with clear interfaces
-- **FR-002**: System MUST provide comprehensive documentation including quickstart guides and API examples for every behavior
-- **FR-003**: System MUST include security-focused tests for all core features covering both security posture and functional correctness
-- **FR-004**: System MUST validate the specification with tests before implementing features
-- **FR-005**: System MUST log all security-related events with appropriate detail for audit trails
+- **FR-001**: System MUST [specific capability, e.g., "allow users to create accounts"]
+- **FR-002**: System MUST [specific capability, e.g., "validate email addresses"]  
+- **FR-003**: Users MUST be able to [key interaction, e.g., "reset their password"]
+- **FR-004**: System MUST [data requirement, e.g., "persist user preferences"]
+- **FR-005**: System MUST [behavior, e.g., "log all security events"]
 
 *Example of marking unclear requirements:*
 
