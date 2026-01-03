@@ -21,7 +21,7 @@ go get github.com/susu-dot-dev/japikey
 
 ### Step 1: Implement the Database Driver
 
-Implement the `DatabaseDriver` interface to provide key lookup functionality:
+Implement the `japikey.DatabaseDriver` interface to provide key lookup functionality:
 
 ```go
 package main
@@ -31,7 +31,8 @@ import (
     "crypto/rsa"
     "github.com/google/uuid"
     "errors"
-    "github.com/susu-dot-dev/japikey/jwks"
+    "github.com/susu-dot-dev/japikey"
+    "github.com/susu-dot-dev/japikey/errors"
 )
 
 type MyDatabase struct {
@@ -42,7 +43,7 @@ func (db *MyDatabase) GetKey(ctx context.Context, kid string) (*rsa.PublicKey, b
     // 1. Convert kid string to UUID
     kidUUID, err := uuid.Parse(kid)
     if err != nil {
-        return nil, false, jwks.ErrKeyNotFound
+        return nil, false, errors.NewKeyNotFoundError("invalid kid format")
     }
 
     // 2. Query your database for the key
@@ -50,10 +51,10 @@ func (db *MyDatabase) GetKey(ctx context.Context, kid string) (*rsa.PublicKey, b
     keyData, err := db.queryKey(ctx, kidUUID)
     if err != nil {
         if errors.Is(err, ErrKeyNotFound) {
-            return nil, false, jwks.ErrKeyNotFound
+            return nil, false, errors.NewKeyNotFoundError("key not found")
         }
         if errors.Is(err, context.DeadlineExceeded) {
-            return nil, false, jwks.ErrDatabaseTimeout
+            return nil, false, errors.NewDatabaseTimeoutError("database timeout")
         }
         return nil, false, err
     }
@@ -78,7 +79,7 @@ Create the JWKS handler with your database driver:
 package main
 
 import (
-    "github.com/susu-dot-dev/japikey/jwks"
+    "github.com/susu-dot-dev/japikey"
 )
 
 func main() {
@@ -89,7 +90,98 @@ func main() {
 
     // Create JWKS handler with cache duration of 300 seconds (5 minutes)
     maxAgeSeconds := 300
-    jwksHandler := jwks.CreateJWKSRouter(db, maxAgeSeconds)
+    jwksHandler := japikey.CreateJWKSRouter(db, maxAgeSeconds)
+
+    // Mount the handler at your desired base path
+    // The full URL will be: /jwks/{kid}/.well-known/jwks.json
+    http.Handle("/jwks/", jwksHandler)
+
+    // Start the server
+    http.ListenAndServe(":8080", nil)
+}
+```
+
+### Step 3: Test the Endpoint
+
+```bash
+curl http://localhost:8080/jwks/550e8400-e29b-41d4-a716-4466554400000/.well-known/jwks.json
+```
+
+---
+
+## Basic Usage
+
+### Step 1: Implement the Database Driver
+
+Implement the `DatabaseDriver` interface to provide key lookup functionality:
+
+```go
+package main
+
+import (
+    "context"
+    "crypto/rsa"
+    "github.com/google/uuid"
+    "errors"
+    "github.com/susu-dot-dev/japikey"
+)
+
+type MyDatabase struct {
+    // Your database connection
+}
+
+func (db *MyDatabase) GetKey(ctx context.Context, kid string) (*rsa.PublicKey, bool, error) {
+    // 1. Convert kid string to UUID
+    kidUUID, err := uuid.Parse(kid)
+    if err != nil {
+        return nil, false, errors.NewKeyNotFoundError
+    }
+
+    // 2. Query your database for the key
+    // This is pseudo-code - replace with your actual database query
+    keyData, err := db.queryKey(ctx, kidUUID)
+    if err != nil {
+        if errors.Is(err, ErrKeyNotFound) {
+            return nil, false, errors.NewKeyNotFoundError
+        }
+        if errors.Is(err, context.DeadlineExceeded) {
+            return nil, false, errors.NewDatabaseTimeoutError
+        }
+        return nil, false, err
+    }
+
+    // 3. Parse your stored public key to *rsa.PublicKey
+    // Your storage format determines how you do this
+    publicKey, err := parsePublicKey(keyData.PublicKeyPEM)
+    if err != nil {
+        return nil, false, err
+    }
+
+    // 4. Return the public key, revoked flag, and nil error
+    return publicKey, keyData.Revoked, nil
+}
+```
+
+### Step 2: Create the JWKS Handler
+
+Create the JWKS handler with your database driver:
+
+```go
+package main
+
+import (
+    "github.com/susu-dot-dev/japikey"
+)
+
+func main() {
+    // Initialize your database
+    db := &MyDatabase{
+        // Your database configuration
+    }
+
+    // Create JWKS handler with cache duration of 300 seconds (5 minutes)
+    maxAgeSeconds := 300
+    jwksHandler := japikey.CreateJWKSRouter(db, maxAgeSeconds)
 
     // Mount the handler at your desired base path
     // The full URL will be: /jwks/{kid}/.well-known/jwks.json
@@ -131,13 +223,13 @@ Control how long clients cache the JWKS response:
 
 ```go
 // No caching (default)
-jwksHandler := jwks.CreateJWKSRouter(db, 0)
+jwksHandler := japikey.CreateJWKSRouter(db, 0)
 
 // Cache for 5 minutes (300 seconds)
-jwksHandler := jwks.CreateJWKSRouter(db, 300)
+jwksHandler := japikey.CreateJWKSRouter(db, 300)
 
 // Cache for 1 hour (3600 seconds)
-jwksHandler := jwks.CreateJWKSRouter(db, 3600)
+jwksHandler := japikey.CreateJWKSRouter(db, 3600)
 ```
 
 **Note**: Negative values are automatically clamped to 0.
@@ -170,13 +262,13 @@ Your database driver should return specific error types:
 
 ```go
 // Key not found (404)
-return nil, false, jwks.ErrKeyNotFound
+return nil, false, errors.NewKeyNotFoundError
 
 // Database timeout (503)
-return nil, false, jwks.ErrDatabaseTimeout
+return nil, false, errors.NewDatabaseTimeoutError
 
 // Database unavailable (503)
-return nil, false, jwks.ErrDatabaseUnavailable
+return nil, false, errors.NewDatabaseUnavailableError
 
 // Other errors (500)
 return nil, false, err
@@ -273,14 +365,14 @@ func parsePublicKey(jwkJSON string) (*rsa.PublicKey, error) {
 ```go
 import (
     "github.com/gin-gonic/gin"
-    "github.com/susu-dot-dev/japikey/jwks"
+    "github.com/susu-dot-dev/japikey"
 )
 
 func main() {
     router := gin.Default()
 
     db := &MyDatabase{}
-    jwksHandler := jwks.CreateJWKSRouter(db, 300)
+    jwksHandler := japikey.CreateJWKSRouter(db, 300)
 
     // Wrap the handler for Gin
     router.Any("/jwks/:kid/.well-known/jwks.json", func(c *gin.Context) {
@@ -296,14 +388,14 @@ func main() {
 ```go
 import (
     "github.com/go-chi/chi/v5"
-    "github.com/susu-dot-dev/japikey/jwks"
+    "github.com/susu-dot-dev/japikey"
 )
 
 func main() {
     r := chi.NewRouter()
 
     db := &MyDatabase{}
-    jwksHandler := jwks.CreateJWKSRouter(db, 300)
+    jwksHandler := japikey.CreateJWKSRouter(db, 300)
 
     r.Mount("/jwks", jwksHandler)
 
@@ -325,7 +417,7 @@ import (
     "net/http/httptest"
     "testing"
 
-    "github.com/susu-dot-dev/japikey/jwks"
+    "github.com/susu-dot-dev/japikey"
     "github.com/stretchr/testify/assert"
 )
 
@@ -334,7 +426,7 @@ func TestJWKSEndpoint(t *testing.T) {
     mockDB := &MockDatabaseDriver{}
 
     // Create handler
-    handler := jwks.CreateJWKSRouter(mockDB, 300)
+    handler := japikey.CreateJWKSRouter(mockDB, 300)
 
     // Test request
     req, _ := http.NewRequest("GET", "/test-kid/.well-known/jwks.json", nil)
@@ -386,7 +478,7 @@ func (db *MyDatabase) GetKey(ctx context.Context, kid string) (*rsa.PublicKey, b
     // Query with timeout
     keyData, err := db.queryKey(ctx, kidUUID)
     if errors.Is(err, context.DeadlineExceeded) {
-        return nil, false, jwks.ErrDatabaseTimeout
+        return nil, false, errors.NewDatabaseTimeoutError
     }
 
     return publicKey, keyData.Revoked, nil
@@ -406,7 +498,7 @@ func (db *MyDatabase) GetKey(ctx context.Context, kid string) (*rsa.PublicKey, b
 2. Key is marked as revoked
 3. Database query returns nil for valid keys
 
-**Solution**: Verify your `GetKey` implementation returns `(nil, false, jwks.ErrKeyNotFound)` only when the key truly doesn't exist.
+**Solution**: Verify your `GetKey` implementation returns `(nil, false, errors.NewKeyNotFoundError)` only when the key truly doesn't exist.
 
 ### Database Timeout (503)
 
@@ -421,7 +513,7 @@ func (db *MyDatabase) GetKey(ctx context.Context, kid string) (*rsa.PublicKey, b
 1. Add indexes on kid column
 2. Increase connection pool size
 3. Optimize database queries
-4. Return `jwks.ErrDatabaseTimeout` for timeouts
+4. Return `errors.NewDatabaseTimeoutError` for timeouts
 
 ### Invalid JWKS Format
 

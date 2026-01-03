@@ -13,8 +13,9 @@
 
 ## Path Conventions
 
-- **Library project**: `jwks/` at repository root for new middleware code
-- **Tests**: `jwks/jwks_test.go` alongside implementation
+- **Library project**: `internal/middleware/` for new middleware code
+- **Tests**: `internal/middleware/jwks_test.go` alongside implementation
+- **Re-exports**: `jwks.go` at repository root to export middleware types
 - **Existing code**: `internal/jwks/` for JWKS generation (used, not modified)
 
 ---
@@ -23,10 +24,11 @@
 
 **Purpose**: Project initialization and basic structure
 
-- [ ] T001 Create jwks/ directory structure in repository root
-- [ ] T002 [P] Create jwks.go file with package declaration and imports in jwks/jwks.go
-- [ ] T003 [P] Create jwks_test.go file with testing imports in jwks/jwks_test.go
-- [ ] T004 [P] Create jwks/README.md file with placeholder for documentation
+- [X] T001 Create internal/middleware/ directory structure
+- [X] T002 [P] Create jwks.go file with package declaration and imports in internal/middleware/jwks.go
+- [X] T003 [P] Create jwks_test.go file with testing imports in internal/middleware/jwks_test.go
+- [X] T004 [P] Create internal/middleware/README.md file with documentation
+- [X] T004b [P] Create jwks.go at root level to re-export middleware types
 
 ---
 
@@ -36,13 +38,13 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T005 Define DatabaseDriver interface with GetKey() method in jwks/jwks.go
-- [ ] T006 [P] Add DatabaseTimeout error type to errors/errors.go (for future database operations)
-- [ ] T007 [P] Add DatabaseUnavailable error type to errors/errors.go (for future database operations)
-- [ ] T008 [P] Define JWKSHandler struct with db and maxAgeSeconds fields in jwks/jwks.go
-- [ ] T009 Define CreateJWKSRouter function signature in jwks/jwks.go
-- [ ] T010 [P] Implement ServeHTTP method skeleton with request logging for 500-class errors in jwks/jwks.go
-- [ ] T011 [P] Import existing internal/jwks package for JWKS generation in jwks/jwks.go
+- [X] T005 Define DatabaseDriver interface with GetKey() method in internal/middleware/jwks.go
+- [X] T006 [P] Add DatabaseTimeout error type to errors/errors.go (for future database operations)
+- [X] T007 [P] Add DatabaseUnavailable error type to errors/errors.go (for future database operations)
+- [X] T008 [P] Define JWKSHandler struct with db and maxAgeSeconds fields in internal/middleware/jwks.go
+- [X] T009 Define CreateJWKSRouter function signature in internal/middleware/jwks.go
+- [X] T010 [P] Implement ServeHTTP method skeleton with request logging for 500-class errors in internal/middleware/jwks.go
+- [X] T011 [P] Import existing internal/jwks package for JWKS generation in internal/middleware/jwks.go
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -56,24 +58,24 @@
 
 ### Tests for User Story 1 (Security-First Testing)
 
-- [ ] T011 [P] [US1] Test valid key returns 200 with JWKS in jwks/jwks_test.go
-- [ ] T012 [P] [US1] Test Cache-Control header reflects configured max-age in jwks/jwks_test.go
-- [ ] T013 [P] [US1] Test JWKS response contains exactly one key with correct kty and kid in jwks/jwks_test.go
-- [ ] T014 [P] [US1] Test JWKS response is valid RFC 7517 format and parseable in jwks/jwks_test.go
-- [ ] T015 [P] [US1] Test response time is under 100ms for valid requests in jwks/jwks_test.go
+- [X] T011 [P] [US1] Test valid key returns 200 with JWKS in internal/middleware/jwks_test.go
+- [X] T012 [P] [US1] Test Cache-Control header reflects configured max-age in internal/middleware/jwks_test.go
+- [X] T013 [P] [US1] Test JWKS response contains exactly one key with correct kty and kid in internal/middleware/jwks_test.go
+- [X] T014 [P] [US1] Test JWKS response is valid RFC 7517 format and parseable in internal/middleware/jwks_test.go
+- [X] T015 [P] [US1] Test response time is under 100ms for valid requests in internal/middleware/jwks_test.go
 
 ### Implementation for User Story 1
 
-- [ ] T016 [US1] Implement path parameter extraction using Go 1.22+ PathValue() method in jwks/jwks.go
-- [ ] T017 [US1] Validate kid format as UUID in jwks/jwks.go
-- [ ] T018 [US1] Call db.GetKey() with context and kid parameter in jwks/jwks.go
-- [ ] T019 [US1] Handle successful key retrieval (key not nil, revoked false) in jwks/jwks.go
-- [ ] T020 [US1] Handle errors.KeyNotFoundError and return 404 in jwks/jwks.go
-- [ ] T021 [US1] Convert kid string to uuid.UUID type in jwks/jwks.go
-- [ ] T022 [US1] Call internal/jwks.NewJWKS() with publicKey and kid UUID in jwks/jwks.go
-- [ ] T023 [US1] Set Content-Type header to application/json in jwks/jwks.go
-- [ ] T024 [US1] Set Cache-Control header with max-age=maxAgeSeconds in jwks/jwks.go
-- [ ] T025 [US1] Return 200 OK status with JWKS JSON response in jwks/jwks.go
+- [X] T016 [US1] Implement path parameter extraction using Go 1.22+ PathValue() method in internal/middleware/jwks.go
+- [X] T017 [US1] Validate kid format as UUID in internal/middleware/jwks.go
+- [X] T018 [US1] Call db.GetKey() with context and kid parameter in internal/middleware/jwks.go
+- [X] T019 [US1] Handle successful key retrieval (key not nil, revoked false) in internal/middleware/jwks.go
+- [X] T020 [US1] Handle errors.KeyNotFoundError and return 404 in internal/middleware/jwks.go
+- [X] T021 [US1] Convert kid string to uuid.UUID type in internal/middleware/jwks.go
+- [X] T022 [US1] Call internal/jwks.NewJWKS() with publicKey and kid UUID in internal/middleware/jwks.go
+- [X] T023 [US1] Set Content-Type header to application/json in internal/middleware/jwks.go
+- [X] T024 [US1] Set Cache-Control header with max-age=maxAgeSeconds in internal/middleware/jwks.go
+- [X] T025 [US1] Return 200 OK status with JWKS JSON response in internal/middleware/jwks.go
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently (valid keys return 200 with JWKS)
 
@@ -87,17 +89,17 @@
 
 ### Tests for User Story 2 (Security-First Testing)
 
-- [ ] T026 [P] [US2] Test non-existent key returns 404 in jwks/jwks_test.go
-- [ ] T027 [P] [US2] Test 404 response contains errors.KeyNotFoundError code in jwks/jwks_test.go
-- [ ] T028 [P] [US2] Test 404 response has proper JSON error structure in jwks/jwks_test.go
-- [ ] T029 [P] [US2] Test no database modifications occur for 404 responses in jwks/jwks_test.go
+- [X] T026 [P] [US2] Test non-existent key returns 404 in internal/middleware/jwks_test.go
+- [X] T027 [P] [US2] Test 404 response contains errors.KeyNotFoundError code in internal/middleware/jwks_test.go
+- [X] T028 [P] [US2] Test 404 response has proper JSON error structure in internal/middleware/jwks_test.go
+- [X] T029 [P] [US2] Test no database modifications occur for 404 responses in internal/middleware/jwks_test.go
 
 ### Implementation for User Story 2
 
-- [ ] T030 [US2] Handle errors.KeyNotFoundError from db.GetKey() in jwks/jwks.go
-- [ ] T031 [US2] Set Content-Type header to application/json for 404 response in jwks/jwks.go
-- [ ] T032 [US2] Set Cache-Control header for 404 response (max-age=0) in jwks/jwks.go
-- [ ] T033 [US2] Return 404 Not Found status with KeyNotFoundError JSON in jwks/jwks.go
+- [X] T030 [US2] Handle errors.KeyNotFoundError from db.GetKey() in internal/middleware/jwks.go
+- [X] T031 [US2] Set Content-Type header to application/json for 404 response in internal/middleware/jwks.go
+- [X] T032 [US2] Set Cache-Control header for 404 response (max-age=0) in internal/middleware/jwks.go
+- [X] T033 [US2] Return 404 Not Found status with KeyNotFoundError JSON in internal/middleware/jwks.go
 
 **Checkpoint**: At this point, User Stories 1 AND 2 should both work independently (valid keys return 200, non-existent return 404)
 
@@ -111,14 +113,14 @@
 
 ### Tests for User Story 3 (Security-First Testing)
 
-- [ ] T034 [P] [US3] Test revoked key returns 404 in jwks/jwks_test.go
-- [ ] T035 [P] [US3] Test revoked key response identical to non-existent key (cannot distinguish) in jwks/jwks_test.go
-- [ ] T036 [P] [US3] Test revoked keys never return valid JWKS in jwks/jwks_test.go
+- [X] T034 [P] [US3] Test revoked key returns 404 in internal/middleware/jwks_test.go
+- [X] T035 [P] [US3] Test revoked key response identical to non-existent key (cannot distinguish) in internal/middleware/jwks_test.go
+- [X] T036 [P] [US3] Test revoked keys never return valid JWKS in internal/middleware/jwks_test.go
 
 ### Implementation for User Story 3
 
-- [ ] T037 [US3] Handle revoked=true return value from db.GetKey() in jwks/jwks.go
-- [ ] T038 [US3] Return 404 Not Found for revoked keys (same as non-existent) in jwks/jwks.go
+- [X] T037 [US3] Handle revoked=true return value from db.GetKey() in internal/middleware/jwks.go
+- [X] T038 [US3] Return 404 Not Found for revoked keys (same as non-existent) in internal/middleware/jwks.go
 
 **Checkpoint**: At this point, all P1 user stories should be complete and independently functional
 
@@ -132,15 +134,15 @@
 
 ### Tests for User Story 4
 
-- [ ] T039 [P] [US4] Test maxAgeSeconds=0 sets max-age=0 in jwks/jwks_test.go
-- [ ] T040 [P] [US4] Test maxAgeSeconds=300 sets max-age=300 in jwks/jwks_test.go
-- [ ] T041 [P] [US4] Test negative maxAgeSeconds is clamped to 0 (max-age=0) in jwks/jwks_test.go
+- [X] T039 [P] [US4] Test maxAgeSeconds=0 sets max-age=0 in internal/middleware/jwks_test.go
+- [X] T040 [P] [US4] Test maxAgeSeconds=300 sets max-age=300 in internal/middleware/jwks_test.go
+- [X] T041 [P] [US4] Test negative maxAgeSeconds is clamped to 0 (max-age=0) in internal/middleware/jwks_test.go
 
 ### Implementation for User Story 4
 
-- [ ] T042 [US4] Implement default maxAgeSeconds of 0 (no caching) in jwks/jwks.go
-- [ ] T043 [US4] Implement clamping of negative maxAgeSeconds to 0 in jwks/jwks.go
-- [ ] T044 [US4] Apply maxAgeSeconds to Cache-Control header in all response paths in jwks/jwks.go
+- [X] T042 [US4] Implement default maxAgeSeconds of 0 (no caching) in internal/middleware/jwks.go
+- [X] T043 [US4] Implement clamping of negative maxAgeSeconds to 0 in internal/middleware/jwks.go
+- [X] T044 [US4] Apply maxAgeSeconds to Cache-Control header in all response paths in internal/middleware/jwks.go
 
 **Checkpoint**: All user stories should now be independently functional
 
@@ -152,17 +154,17 @@
 
 ### Tests for Database Error Handling
 
-- [ ] T045 [P] Test database timeout returns 503 in jwks/jwks_test.go
-- [ ] T046 [P] Test database unavailable returns 503 in jwks/jwks_test.go
-- [ ] T047 [P] Test other database errors return 500 in jwks/jwks_test.go
-- [ ] T048 [P] Test 500-class errors are logged in jwks/jwks_test.go
+- [X] T045 [P] Test database timeout returns 503 in internal/middleware/jwks_test.go
+- [X] T046 [P] Test database unavailable returns 503 in internal/middleware/jwks_test.go
+- [X] T047 [P] Test other database errors return 500 in internal/middleware/jwks_test.go
+- [X] T048 [P] Test 500-class errors are logged in internal/middleware/jwks_test.go
 
 ### Implementation for Database Error Handling
 
-- [ ] T049 Handle errors.DatabaseTimeout from db.GetKey() and return 503 in jwks/jwks.go
-- [ ] T050 Handle errors.DatabaseUnavailable from db.GetKey() and return 503 in jwks/jwks.go
-- [ ] T051 Handle other errors from db.GetKey() and return 500 in jwks/jwks.go
-- [ ] T052 Add logging for all 500-class errors (500, 503) in jwks/jwks.go
+- [X] T049 Handle errors.DatabaseTimeout from db.GetKey() and return 503 in internal/middleware/jwks.go
+- [X] T050 Handle errors.DatabaseUnavailable from db.GetKey() and return 503 in internal/middleware/jwks.go
+- [X] T051 Handle other errors from db.GetKey() and return 500 in internal/middleware/jwks.go
+- [X] T052 Add logging for all 500-class errors (500, 503) in internal/middleware/jwks.go
 
 ---
 
@@ -172,19 +174,19 @@
 
 ### Tests for Security & Concurrency
 
-- [ ] T053 [P] Test invalid kid format returns 404 in jwks/jwks_test.go
-- [ ] T054 [P] Test empty kid returns 404 in jwks/jwks_test.go
-- [ ] T055 [P] Test concurrent requests for same key ID are handled safely in jwks/jwks_test.go
-- [ ] T056 [P] Test no private key information is exposed in any response in jwks/jwks_test.go
-- [ ] T057 [P] Test Content-Type is always application/json in jwks/jwks_test.go
-- [ ] T058 [P] Test JWKS response contains only requested key, never multiple keys in jwks/jwks_test.go
+- [X] T053 [P] Test invalid kid format returns 404 in internal/middleware/jwks_test.go
+- [X] T054 [P] Test empty kid returns 404 in internal/middleware/jwks_test.go
+- [X] T055 [P] Test concurrent requests for same key ID are handled safely in internal/middleware/jwks_test.go
+- [X] T056 [P] Test no private key information is exposed in any response in internal/middleware/jwks_test.go
+- [X] T057 [P] Test Content-Type is always application/json in internal/middleware/jwks_test.go
+- [X] T058 [P] Test JWKS response contains only requested key, never multiple keys in internal/middleware/jwks_test.go
 
 ### Implementation for Security & Concurrency
 
-- [ ] T059 Ensure no shared state between requests (handler is thread-safe) in jwks/jwks.go
-- [ ] T060 Ensure all database operations use context for cancellation in jwks/jwks.go
-- [ ] T061 Ensure read-only database operations (no writes) in jwks/jwks.go
-- [ ] T062 Ensure error messages do not expose sensitive database details in jwks/jwks.go
+- [X] T059 Ensure no shared state between requests (handler is thread-safe) in internal/middleware/jwks.go
+- [X] T060 Ensure all database operations use context for cancellation in internal/middleware/jwks.go
+- [X] T061 Ensure read-only database operations (no writes) in internal/middleware/jwks.go
+- [X] T062 Ensure error messages do not expose sensitive database details in internal/middleware/jwks.go
 
 ---
 
@@ -192,13 +194,13 @@
 
 **Purpose**: Final improvements, documentation, and validation
 
-- [ ] T063 [P] Complete jwks/README.md with installation, usage, configuration, and examples in jwks/README.md
-- [ ] T064 [P] Add mock database driver implementation examples for testing in jwks/README.md
-- [ ] T065 [P] Code cleanup and refactoring in jwks/jwks.go
-- [ ] T066 [P] Add godoc comments to exported types and functions in jwks/jwks.go
-- [ ] T067 Run all tests to ensure 100% pass rate in jwks/jwks_test.go
-- [ ] T068 Verify tests fail before implementing (TDD validation)
-- [ ] T069 Validate quickstart.md examples work with implementation in jwks/jwks_test.go
+- [X] T063 [P] Complete internal/middleware/README.md with installation, usage, configuration, and examples in internal/middleware/README.md
+- [X] T064 [P] Add mock database driver implementation examples for testing in internal/middleware/README.md
+- [X] T065 [P] Code cleanup and refactoring in internal/middleware/jwks.go
+- [X] T066 [P] Add godoc comments to exported types and functions in internal/middleware/jwks.go
+- [X] T067 Run all tests to ensure 100% pass rate in internal/middleware/jwks_test.go
+- [X] T068 Verify tests fail before implementing (TDD validation)
+- [X] T069 Validate quickstart.md examples work with implementation in internal/middleware/jwks_test.go
 
 ---
 
@@ -277,17 +279,17 @@
 
 ```bash
 # Launch all tests for User Story 1 together (first):
-Task: "T012 [P] [US1] Test valid key returns 200 with JWKS in jwks/jwks_test.go"
-Task: "T013 [P] [US1] Test Cache-Control header reflects configured max-age in jwks/jwks_test.go"
-Task: "T014 [P] [US1] Test JWKS response contains exactly one key with correct kty and kid in jwks/jwks_test.go"
-Task: "T015 [P] [US1] Test JWKS response is valid RFC 7517 format and parseable in jwks/jwks_test.go"
-Task: "T016 [P] [US1] Test response time is under 100ms for valid requests in jwks/jwks_test.go"
+Task: "T012 [P] [US1] Test valid key returns 200 with JWKS in internal/middleware/jwks_test.go"
+Task: "T013 [P] [US1] Test Cache-Control header reflects configured max-age in internal/middleware/jwks_test.go"
+Task: "T014 [P] [US1] Test JWKS response contains exactly one key with correct kty and kid in internal/middleware/jwks_test.go"
+Task: "T015 [P] [US1] Test JWKS response is valid RFC 7517 format and parseable in internal/middleware/jwks_test.go"
+Task: "T016 [P] [US1] Test response time is under 100ms for valid requests in internal/middleware/jwks_test.go"
 
 # Verify all tests fail before implementation (TDD validation)
 
 # Then implement User Story 1 sequentially:
-Task: "T017 [US1] Implement path parameter extraction using Go 1.22+ PathValue() method in jwks/jwks.go"
-Task: "T018 [US1] Validate kid format as UUID in jwks/jwks.go"
+Task: "T017 [US1] Implement path parameter extraction using Go 1.22+ PathValue() method in internal/middleware/jwks.go"
+Task: "T018 [US1] Validate kid format as UUID in internal/middleware/jwks.go"
 # ... continue with remaining US1 implementation tasks
 ```
 

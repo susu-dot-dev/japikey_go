@@ -87,17 +87,20 @@ specs/005-jwks-endpoint/
 ### Source Code (repository root)
 
 ```text
-jwks/
+internal/middleware/       # JWKS endpoint middleware implementation
 ├── jwks.go              # JWKS endpoint middleware implementation
 ├── jwks_test.go         # Tests using net/http/httptest
 └── README.md            # Documentation for JWKS middleware
+
+jwks.go                  # Re-export of middleware types at package root
+                           # Allows users to import from main package
 
 internal/jwks/           # Existing code to be used/integrated
 ├── jwks.go              # Existing JWKS generation code
 └── jwks_test.go         # Existing JWKS tests
 ```
 
-**Structure Decision**: The JWKS middleware is a new package (jwks/) that follows the existing japikey project structure. The middleware will use existing JWKS generation code from internal/jwks/ and be independently testable. Test files use Go's standard testing and net/http/httptest packages.
+**Structure Decision**: The JWKS middleware is implemented in `internal/middleware/` package following the japikey project structure. The middleware uses existing JWKS generation code from `internal/jwks/` and is independently testable. Types are re-exported at the package root via `jwks.go` for a clean API. Test files use Go's standard testing and net/http/httptest packages.
 
 ## Complexity Tracking
 
