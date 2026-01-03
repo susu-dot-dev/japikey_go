@@ -53,6 +53,13 @@ func clampMaxAge(maxAge int) int {
 	return maxAge
 }
 
+func sendErrorResponse(w http.ResponseWriter, statusCode int, code, message string) {
+	w.WriteHeader(statusCode)
+	if err := json.NewEncoder(w).Encode(ErrorResponse{Code: code, Message: message}); err != nil {
+		log.Printf("[JWKS] Error encoding response: %v", err)
+	}
+}
+
 func (h *JWKSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "max-age="+strconv.Itoa(h.maxAgeSeconds))
@@ -63,82 +70,49 @@ func (h *JWKSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.db.GetKey(ctx, kid)
 	if err != nil {
-		if _, ok := err.(*errors.KeyNotFoundError); ok {
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(ErrorResponse{
-				Code:    "KeyNotFoundError",
-				Message: "API key not found",
-			})
-			return
-		}
-		if _, ok := err.(*errors.DatabaseTimeoutError); ok {
+		switch err.(type) {
+		case *errors.KeyNotFoundError:
+			sendErrorResponse(w, http.StatusNotFound, "KeyNotFoundError", "API key not found")
+		case *errors.DatabaseTimeoutError:
 			log.Printf("[JWKS] Database timeout: %v", err)
-			w.WriteHeader(http.StatusServiceUnavailable)
-			json.NewEncoder(w).Encode(ErrorResponse{
-				Code:    "InternalError",
-				Message: "Database temporarily unavailable",
-			})
-			return
-		}
-		if _, ok := err.(*errors.DatabaseUnavailableError); ok {
+			sendErrorResponse(w, http.StatusServiceUnavailable, "InternalError", "Database temporarily unavailable")
+		case *errors.DatabaseUnavailableError:
 			log.Printf("[JWKS] Database unavailable: %v", err)
-			w.WriteHeader(http.StatusServiceUnavailable)
-			json.NewEncoder(w).Encode(ErrorResponse{
-				Code:    "InternalError",
-				Message: "Database temporarily unavailable",
-			})
-			return
+			sendErrorResponse(w, http.StatusServiceUnavailable, "InternalError", "Database temporarily unavailable")
+		default:
+			log.Printf("[JWKS] Database error: %v", err)
+			sendErrorResponse(w, http.StatusInternalServerError, "InternalError", "Internal server error")
 		}
-		log.Printf("[JWKS] Database error: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(ErrorResponse{
-			Code:    "InternalError",
-			Message: "Internal server error",
-		})
 		return
 	}
 
 	if result == nil || result.PublicKey == nil || result.Revoked {
-		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(ErrorResponse{
-			Code:    "KeyNotFoundError",
-			Message: "API key not found",
-		})
+		sendErrorResponse(w, http.StatusNotFound, "KeyNotFoundError", "API key not found")
 		return
 	}
 
 	kidUUID, err := uuid.Parse(kid)
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(ErrorResponse{
-			Code:    "KeyNotFoundError",
-			Message: "API key not found",
-		})
+		sendErrorResponse(w, http.StatusNotFound, "KeyNotFoundError", "API key not found")
 		return
 	}
 
 	jwks, err := internaljwks.NewJWKS(result.PublicKey, kidUUID)
 	if err != nil {
 		log.Printf("[JWKS] Error generating JWKS: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(ErrorResponse{
-			Code:    "InternalError",
-			Message: "Internal server error",
-		})
+		sendErrorResponse(w, http.StatusInternalServerError, "InternalError", "Internal server error")
 		return
 	}
 
 	jsonData, err := jwks.MarshalJSON()
 	if err != nil {
 		log.Printf("[JWKS] Error marshaling JWKS: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(ErrorResponse{
-			Code:    "InternalError",
-			Message: "Internal server error",
-		})
+		sendErrorResponse(w, http.StatusInternalServerError, "InternalError", "Internal server error")
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write(jsonData)
+	if _, err := w.Write(jsonData); err != nil {
+		log.Printf("[JWKS] Error writing response: %v", err)
+	}
 }
