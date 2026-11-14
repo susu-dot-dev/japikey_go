@@ -16,6 +16,10 @@ GOVET=$(GOCMD) vet
 GOFMT=gofmt
 GOLINT=golangci-lint
 
+# Modules in the go.work workspace. "./..." only matches the module in the
+# current directory, so targets that need to cover everything loop over these.
+MODULES=. example jwx/tool
+
 # Binary name
 BINARY_NAME=japikey-go
 
@@ -29,12 +33,12 @@ all: test
 ## Build the project
 .PHONY: build
 build:
-	$(GOBUILD) -v ./...
+	@for m in $(MODULES); do (cd $$m && $(GOBUILD) -v ./...) || exit 1; done
 
 ## Build the jwx verification tool
 .PHONY: build-jwx
 build-jwx:
-	cd jwx/tool && $(GOBUILD) -v .
+	cd jwx/tool && $(GOBUILD) -v ./...
 
 ## Run the jwx verification tool
 .PHONY: run-jwx
@@ -45,23 +49,19 @@ run-jwx: build-jwx
 ## Run tests
 .PHONY: test
 test: build-jwx
-	$(GOTEST) -v ./...
-	@echo "Running examples to ensure they work..."
-	cd example && go run main.go
-	cd example && go run jwks_example.go
+	@for m in $(MODULES); do (cd $$m && $(GOTEST) -v ./...) || exit 1; done
+	@$(MAKE) --no-print-directory examples
 
-## Run tests including jwx tool
+## Run tests including jwx tool (kept for compatibility; test already covers it)
 .PHONY: test-with-jwx
-test-with-jwx: build-jwx test
-	@echo "Testing jwx tool..."
-	cd jwx/tool && $(GOTEST) -v .
+test-with-jwx: test
 
 ## Run examples
 .PHONY: examples
 examples:
 	@echo "Running examples to ensure they work..."
-	cd example && go run main.go
-	cd example && go run jwks_example.go
+	cd example && go run ./basic
+	cd example && go run ./jwks
 
 ## Run tests with coverage
 .PHONY: test-coverage
@@ -72,7 +72,7 @@ test-coverage:
 ## Run linting
 .PHONY: lint
 lint:
-	golangci-lint run ./...
+	@for m in $(MODULES); do (cd $$m && $(GOLINT) run ./...) || exit 1; done
 
 ## Format code
 .PHONY: fmt
@@ -82,12 +82,12 @@ fmt:
 ## Vet code
 .PHONY: vet
 vet:
-	$(GOVET) ./...
+	@for m in $(MODULES); do (cd $$m && $(GOVET) ./...) || exit 1; done
 
 ## Tidy go modules
 .PHONY: tidy
 tidy:
-	$(GOMOD) tidy
+	@for m in $(MODULES); do (cd $$m && $(GOMOD) tidy) || exit 1; done
 
 ## Clean build artifacts
 .PHONY: clean
@@ -102,12 +102,12 @@ check: fmt vet lint test
 ## Install dependencies
 .PHONY: deps
 deps:
-	$(GOGET) -t -v ./...
+	@for m in $(MODULES); do (cd $$m && $(GOGET) -t -v ./...) || exit 1; done
 
 ## Run security scan
 .PHONY: security
 security:
-	$(GOCMD) run golang.org/x/vuln/cmd/govulncheck@latest ./...
+	@for m in $(MODULES); do (cd $$m && $(GOCMD) run golang.org/x/vuln/cmd/govulncheck@latest ./...) || exit 1; done
 
 ## Generate documentation
 .PHONY: docs
@@ -125,7 +125,7 @@ help:
 	@echo "  build         - Build the project"
 	@echo "  build-jwx     - Build the jwx verification tool"
 	@echo "  test          - Run tests"
-	@echo "  test-with-jwx - Run tests including jwx tool"
+	@echo "  test-with-jwx - Alias for test (which already covers the jwx tool)"
 	@echo "  examples      - Run examples"
 	@echo "  test-coverage - Run tests with coverage"
 	@echo "  lint          - Run linter"

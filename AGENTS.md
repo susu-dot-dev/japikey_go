@@ -17,13 +17,17 @@ internal/jwks/   - JWKS (JSON Web Key Set) implementation
   jwks.go        - JWK to JWKS conversion
 errors/          - Custom error types
   errors.go      - ValidationError, ConversionError, KeyNotFoundError, InternalError, TokenExpiredError
-example/         - Example usage code
-jwx/tool/        - JWKS parsing and generation tool
+example/         - Example usage code (own module; one main package per subdirectory: basic/, jwks/)
+jwx/tool/        - JWKS parsing and generation tool (own module)
+go.work          - Workspace tying together the root, example/ and jwx/tool/ modules
 ```
 
 ## Commands
 
 ### Build
+
+This repo is a Go workspace (`go.work`) with three modules: the root, `example/` and `jwx/tool/`. `./...` only matches the module in the current directory, so the Makefile loops over all three; use `make` targets rather than bare `go vet ./...` to cover everything.
+
 - `make build` - Build the project
 - `make build-jwx` - Build the JWKS verification tool
 

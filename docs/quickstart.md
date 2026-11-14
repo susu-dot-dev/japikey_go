@@ -151,6 +151,6 @@ if err != nil {
 ## Next Steps
 
 Check out the examples in the `example/` directory:
-- `example/main.go` - Basic JAPIKey usage
-- `example/jwks_example.go` - Complete JWKS examples
+- `example/basic/main.go` - Basic JAPIKey usage
+- `example/jwks/main.go` - Complete JWKS examples
 - `example/jwks.json` - Sample JWKS file for testing
