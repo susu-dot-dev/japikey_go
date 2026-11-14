@@ -1,28 +1,49 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math/big"
 	"os"
+	"strings"
 
 	"github.com/urfave/cli/v3"
 )
 
-func parseAction(ctx context.Context, c *cli.Command) error {
-	// Read JSON from stdin
-	scanner := bufio.NewScanner(os.Stdin)
-	input := ""
-	for scanner.Scan() {
-		input += scanner.Text()
-	}
+const (
+	// maxInputSize caps how much of stdin is read. A single RSA JWK (even 16384-bit)
+	// is well under 4KB, so this leaves generous headroom while preventing
+	// unbounded memory use from a large or endless stdin.
+	maxInputSize = 16 * 1024
 
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("error reading from stdin: %w", err)
+	// maxExponentBytes caps the decoded public exponent length. Real exponents
+	// (65537) are 3 bytes; 4 bytes always fits in an int without overflow.
+	maxExponentBytes = 4
+)
+
+// readLimited reads at most max bytes from r and returns an error if the
+// input is larger, instead of silently truncating it.
+func readLimited(r io.Reader, max int64) (string, error) {
+	data, err := io.ReadAll(io.LimitReader(r, max+1))
+	if err != nil {
+		return "", fmt.Errorf("error reading from stdin: %w", err)
 	}
+	if int64(len(data)) > max {
+		return "", fmt.Errorf("input exceeds maximum allowed size of %d bytes", max)
+	}
+	return string(data), nil
+}
+
+func parseAction(ctx context.Context, c *cli.Command) error {
+	// Read JSON from stdin (size-capped)
+	input, err := readLimited(os.Stdin, maxInputSize)
+	if err != nil {
+		return err
+	}
+	input = strings.TrimSpace(input)
 
 	// Check if input is empty
 	if input == "" {
@@ -74,6 +95,10 @@ func parseAction(ctx context.Context, c *cli.Command) error {
 
 	if len(exponentBytes) == 0 {
 		return fmt.Errorf("exponent (e) cannot be empty after decoding")
+	}
+
+	if len(exponentBytes) > maxExponentBytes {
+		return fmt.Errorf("exponent (e) is too large: %d bytes, maximum is %d", len(exponentBytes), maxExponentBytes)
 	}
 
 	// Convert the exponent bytes to an integer

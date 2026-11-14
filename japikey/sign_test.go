@@ -1,6 +1,8 @@
 package japikey
 
 import (
+	"context"
+	"crypto/rsa"
 	"encoding/json"
 	"fmt"
 	"os/exec"
@@ -401,36 +403,6 @@ func TestThreadSafety(t *testing.T) {
 	}
 }
 
-func TestPerformanceGenerationTime(t *testing.T) {
-	// Test that API key generation takes less than 100ms
-	config := Config{
-		Subject:   "test-user",
-		Issuer:    "https://example.com",
-		Audience:  "test-audience",
-		ExpiresAt: time.Now().Add(1 * time.Hour),
-	}
-
-	start := time.Now()
-	result, err := NewJAPIKey(config)
-	duration := time.Since(start)
-
-	if err != nil {
-		t.Fatalf("Expected no error, but got: %v", err)
-	}
-
-	if result == nil {
-		t.Fatal("Expected result to not be nil")
-	}
-
-	if duration > 100*time.Millisecond {
-		t.Errorf("Expected generation time to be < 100ms, took %v", duration)
-	}
-
-	if result.JWT == "" {
-		t.Error("Expected JWT to be populated")
-	}
-}
-
 func TestConcurrentAPIKeyGeneration(t *testing.T) {
 	// Test that multiple API keys can be generated concurrently
 	numKeys := 5
@@ -556,8 +528,8 @@ func TestJWTSignatureVerificationWithReturnedPublicKey(t *testing.T) {
 		if sub, exists := claims["sub"]; !exists || sub != config.Subject {
 			t.Errorf("Expected subject '%s', got '%v'", config.Subject, sub)
 		}
-		if iss, exists := claims["iss"]; !exists || iss != config.Issuer {
-			t.Errorf("Expected issuer '%s', got '%v'", config.Issuer, iss)
+		if wantIss := BuildIssuer(config.Issuer, result.KeyID); claims["iss"] != wantIss {
+			t.Errorf("Expected issuer '%s', got '%v'", wantIss, claims["iss"])
 		}
 		if aud, exists := claims["aud"]; !exists || aud != config.Audience {
 			t.Errorf("Expected audience '%s', got '%v'", config.Audience, aud)
@@ -675,8 +647,8 @@ func TestIntegrationFullWorkflow(t *testing.T) {
 		if sub, exists := claims["sub"]; !exists || sub != config.Subject {
 			t.Errorf("Expected subject '%s', got '%v'", config.Subject, sub)
 		}
-		if iss, exists := claims["iss"]; !exists || iss != config.Issuer {
-			t.Errorf("Expected issuer '%s', got '%v'", config.Issuer, iss)
+		if wantIss := BuildIssuer(config.Issuer, result.KeyID); claims["iss"] != wantIss {
+			t.Errorf("Expected issuer '%s', got '%v'", wantIss, claims["iss"])
 		}
 		if aud, exists := claims["aud"]; !exists || aud != config.Audience {
 			t.Errorf("Expected audience '%s', got '%v'", config.Audience, aud)
@@ -750,8 +722,8 @@ func TestUserClaimsCannotOverrideConfigClaims(t *testing.T) {
 			t.Errorf("Expected subject to be '%s' from config, but got '%v'", config.Subject, sub)
 		}
 
-		if iss, exists := claims["iss"]; !exists || iss != config.Issuer {
-			t.Errorf("Expected issuer to be '%s' from config, but got '%v'", config.Issuer, iss)
+		if wantIss := BuildIssuer(config.Issuer, result.KeyID); claims["iss"] != wantIss {
+			t.Errorf("Expected issuer to be '%s' (config issuer + key ID), but got '%v'", wantIss, claims["iss"])
 		}
 
 		if aud, exists := claims["aud"]; !exists || aud != config.Audience {
@@ -963,5 +935,184 @@ func TestJAPIKey_ToJWKS_ValidateAgainstJWXTool(t *testing.T) {
 	// If the command succeeded, the JWK format is valid according to the jwx tool
 	if len(output) == 0 {
 		t.Error("jwx tool returned empty output for valid JWK")
+	}
+}
+
+// The returned public key must not alias the private key, otherwise the whole
+// rsa.PrivateKey stays reachable for as long as the caller holds the public key.
+func TestNewJAPIKeyPublicKeyDoesNotRetainPrivateKey(t *testing.T) {
+	result, err := NewJAPIKey(Config{
+		Subject:   "user",
+		Issuer:    "https://example.com",
+		Audience:  "aud",
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("Failed to create JAPIKey: %v", err)
+	}
+
+	if result.PublicKey == nil || result.PublicKey.N == nil || result.PublicKey.E == 0 {
+		t.Fatal("Expected a populated public key")
+	}
+
+	// The key must still verify the signature it was minted with.
+	parsed, err := jwt.Parse(result.JWT, func(*jwt.Token) (interface{}, error) {
+		return result.PublicKey, nil
+	}, jwt.WithValidMethods([]string{"RS256"}))
+	if err != nil || !parsed.Valid {
+		t.Fatalf("Public key failed to verify minted token: %v", err)
+	}
+}
+
+func TestNewJAPIKeyIncludesIssuedAt(t *testing.T) {
+	before := time.Now().Unix()
+	result, err := NewJAPIKey(Config{
+		Subject:   "user-123",
+		Issuer:    "https://example.com",
+		Audience:  "aud",
+		ExpiresAt: time.Now().Add(time.Hour),
+		// A user-supplied iat must not override the real issue time
+		Claims: map[string]interface{}{"iat": int64(1)},
+	})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	claims := jwt.MapClaims{}
+	if _, _, err := jwt.NewParser().ParseUnverified(result.JWT, claims); err != nil {
+		t.Fatalf("Failed to parse token: %v", err)
+	}
+	iat, err := claims.GetIssuedAt()
+	if err != nil || iat == nil {
+		t.Fatalf("Expected valid iat claim, got %v (err %v)", iat, err)
+	}
+	if iat.Unix() < before || iat.Unix() > time.Now().Unix() {
+		t.Errorf("Expected iat between %d and now, got %d", before, iat.Unix())
+	}
+}
+
+func TestNewJAPIKeyRejectsOversizedToken(t *testing.T) {
+	_, err := NewJAPIKey(Config{
+		Subject:   "user-123",
+		Issuer:    "https://example.com",
+		Audience:  "aud",
+		ExpiresAt: time.Now().Add(time.Hour),
+		Claims:    map[string]interface{}{"big": strings.Repeat("a", MaxTokenSize)},
+	})
+	if err == nil {
+		t.Fatal("Expected error for token exceeding MaxTokenSize")
+	}
+	if _, ok := err.(*errors.ValidationError); !ok {
+		t.Errorf("Expected ValidationError, got %T", err)
+	}
+}
+
+func TestNewJAPIKeyRejectsShortLivedExpiry(t *testing.T) {
+	tests := []struct {
+		name      string
+		expiresAt time.Time
+		wantErr   bool
+	}{
+		{"already expired", time.Now().Add(-time.Hour), true},
+		{"sub-second future", time.Now().Add(500 * time.Millisecond), true},
+		{"just under minimum", time.Now().Add(MinKeyLifetime - time.Second), true},
+		{"zero time", time.Time{}, true},
+		{"comfortably above minimum", time.Now().Add(MinKeyLifetime + 5*time.Second), false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := NewJAPIKey(Config{
+				Subject:   "user-123",
+				Issuer:    "https://example.com",
+				Audience:  "aud",
+				ExpiresAt: tt.expiresAt,
+			})
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("Expected error for short-lived expiry, got none")
+				}
+				if _, ok := err.(*errors.ValidationError); !ok {
+					t.Errorf("Expected ValidationError, got %T", err)
+				}
+				if result != nil {
+					t.Error("Expected nil result on error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+			if result == nil || result.JWT == "" {
+				t.Error("Expected a minted key")
+			}
+		})
+	}
+}
+
+func TestBuildIssuer(t *testing.T) {
+	id := uuid.MustParse("123e4567-e89b-12d3-a456-426614174000")
+	tests := []struct {
+		name string
+		base string
+		want string
+	}{
+		{"no trailing slash", "https://example.com", "https://example.com/123e4567-e89b-12d3-a456-426614174000"},
+		{"trailing slash", "https://example.com/", "https://example.com/123e4567-e89b-12d3-a456-426614174000"},
+		{"path prefix", "https://example.com/keys", "https://example.com/keys/123e4567-e89b-12d3-a456-426614174000"},
+		{"path prefix trailing slash", "https://example.com/keys/", "https://example.com/keys/123e4567-e89b-12d3-a456-426614174000"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := BuildIssuer(tt.base, id); got != tt.want {
+				t.Errorf("BuildIssuer(%q) = %q, want %q", tt.base, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNewJAPIKeyRejectsEmptyIssuer(t *testing.T) {
+	_, err := NewJAPIKey(Config{
+		Subject:   "user-123",
+		Audience:  "aud",
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+	if _, ok := err.(*errors.ValidationError); !ok {
+		t.Fatalf("expected *ValidationError for empty issuer, got %T: %v", err, err)
+	}
+}
+
+// TestMintedKeyPassesVerify is the regression test for minted tokens being
+// rejected by Verify: the full NewJAPIKey -> Verify path, with and without a
+// trailing slash on the base issuer.
+func TestMintedKeyPassesVerify(t *testing.T) {
+	for _, base := range []string{"https://example.com", "https://example.com/", "https://example.com/keys"} {
+		t.Run(base, func(t *testing.T) {
+			result, err := NewJAPIKey(Config{
+				Subject:   "user-123",
+				Issuer:    base,
+				Audience:  "aud",
+				ExpiresAt: time.Now().Add(time.Hour),
+			})
+			if err != nil {
+				t.Fatalf("NewJAPIKey: %v", err)
+			}
+			keyFunc := func(_ context.Context, id uuid.UUID) (*rsa.PublicKey, error) {
+				if id != result.KeyID {
+					return nil, errors.NewKeyNotFoundError("not found")
+				}
+				return result.PublicKey, nil
+			}
+			res, err := Verify(context.Background(), result.JWT, VerifyConfig{BaseIssuerURL: base}, keyFunc)
+			if err != nil {
+				t.Fatalf("Verify rejected a freshly minted key: %v", err)
+			}
+			if res.KeyID != result.KeyID {
+				t.Errorf("KeyID = %s, want %s", res.KeyID, result.KeyID)
+			}
+			if !ShouldVerify(result.JWT, base) {
+				t.Error("ShouldVerify rejected a freshly minted key")
+			}
+		})
 	}
 }

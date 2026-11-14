@@ -4,13 +4,14 @@ import (
 	"context"
 	"crypto/rsa"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"strconv"
 	"time"
 	"uuid"
 
-	"github.com/susu-dot-dev/japikey/errors"
+	japikeyerrors "github.com/susu-dot-dev/japikey/errors"
 	internaljwks "github.com/susu-dot-dev/japikey/internal/jwks"
 )
 
@@ -40,7 +41,7 @@ type JWKSHandler struct {
 
 func CreateJWKSRouter(config JWKSRouterConfig) (http.Handler, error) {
 	if config.DB == nil {
-		return nil, errors.NewValidationError("DatabaseDriver is required")
+		return nil, japikeyerrors.NewValidationError("DatabaseDriver is required")
 	}
 	if config.Timeout <= 0 {
 		config.Timeout = 5 * time.Second
@@ -63,6 +64,9 @@ func clampMaxAge(maxAge int) int {
 }
 
 func sendErrorResponse(w http.ResponseWriter, statusCode int, code, message string) {
+	// Error responses must never be cached: a transient 404/503 cached by a CDN
+	// or proxy for max-age would otherwise extend an outage or hide a valid key.
+	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(statusCode)
 	if err := json.NewEncoder(w).Encode(ErrorResponse{Code: code, Message: message}); err != nil {
 		log.Printf("[JWKS] Error encoding response: %v", err)
@@ -74,32 +78,51 @@ func (h *JWKSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "max-age="+strconv.Itoa(h.MaxAgeSeconds))
 
 	select {
 	case <-ctx.Done():
-		if ctx.Err() == context.DeadlineExceeded {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			sendErrorResponse(w, http.StatusServiceUnavailable, "Timeout", "Request timeout")
 			return
 		}
 	default:
 	}
 
-	kid := r.PathValue("kid")
+	// Validate the untrusted path value before it reaches the database driver.
+	// uuid.Parse also accepts non-canonical forms (uppercase, urn:uuid:, braces,
+	// no dashes), so pass the canonical string form to the driver rather than the
+	// raw input. This keeps arbitrary attacker-controlled strings out of driver
+	// queries and keeps lookups, caches and revocation keyed consistently.
+	kidUUID, err := uuid.Parse(r.PathValue("kid"))
+	if err != nil || kidUUID == uuid.Nil() {
+		sendErrorResponse(w, http.StatusNotFound, "KeyNotFoundError", "API key not found")
+		return
+	}
+	kid := kidUUID.String()
 
 	result, err := h.DB.GetKey(ctx, kid)
 	if err != nil {
-		if err == context.DeadlineExceeded {
-			sendErrorResponse(w, http.StatusServiceUnavailable, "Timeout", "Request timeout")
-			return
-		}
-		switch err.(type) {
-		case *errors.KeyNotFoundError:
+		// Drivers commonly wrap errors (fmt.Errorf("...: %w", err)), so match with
+		// errors.Is / errors.As rather than == or a type switch.
+		var (
+			notFoundErr    *japikeyerrors.KeyNotFoundError
+			timeoutErr     *japikeyerrors.DatabaseTimeoutError
+			unavailableErr *japikeyerrors.DatabaseUnavailableError
+		)
+		switch {
+		case errors.As(err, &notFoundErr):
 			sendErrorResponse(w, http.StatusNotFound, "KeyNotFoundError", "API key not found")
-		case *errors.DatabaseTimeoutError:
+		case errors.Is(err, context.DeadlineExceeded):
+			sendErrorResponse(w, http.StatusServiceUnavailable, "Timeout", "Request timeout")
+		case errors.Is(err, context.Canceled):
+			// The client went away (or the server is shutting down). That is not
+			// a database failure: do not log it as one. The status is mostly
+			// for tests and proxies, as nobody is left to read the response.
+			sendErrorResponse(w, http.StatusServiceUnavailable, "Canceled", "Request canceled")
+		case errors.As(err, &timeoutErr):
 			log.Printf("[JWKS] Database timeout: %v", err)
 			sendErrorResponse(w, http.StatusServiceUnavailable, "InternalError", "Database temporarily unavailable")
-		case *errors.DatabaseUnavailableError:
+		case errors.As(err, &unavailableErr):
 			log.Printf("[JWKS] Database unavailable: %v", err)
 			sendErrorResponse(w, http.StatusServiceUnavailable, "InternalError", "Database temporarily unavailable")
 		default:
@@ -110,12 +133,6 @@ func (h *JWKSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if result == nil || result.PublicKey == nil || result.Revoked {
-		sendErrorResponse(w, http.StatusNotFound, "KeyNotFoundError", "API key not found")
-		return
-	}
-
-	kidUUID, err := uuid.Parse(kid)
-	if err != nil {
 		sendErrorResponse(w, http.StatusNotFound, "KeyNotFoundError", "API key not found")
 		return
 	}
@@ -134,6 +151,8 @@ func (h *JWKSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Only successful responses are cacheable
+	w.Header().Set("Cache-Control", "max-age="+strconv.Itoa(h.MaxAgeSeconds))
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write(jsonData); err != nil {
 		log.Printf("[JWKS] Error writing response: %v", err)

@@ -16,17 +16,18 @@ japikey/         - Main package for signing and verification
 internal/jwks/   - JWKS (JSON Web Key Set) implementation
   jwks.go        - JWK to JWKS conversion
 errors/          - Custom error types
-  errors.go      - ValidationError, ConversionError, KeyNotFoundError, InternalError, TokenExpiredError
+  errors.go      - ValidationError, ConversionError, KeyNotFoundError, InternalError, TokenExpiredError, UnauthorizedError
 example/         - Example usage code (own module; one main package per subdirectory: basic/, jwks/)
 jwx/tool/        - JWKS parsing and generation tool (own module)
-go.work          - Workspace tying together the root, example/ and jwx/tool/ modules
+integration/     - End-to-end mint + JWKS HTTP + verify tests using third-party jwx v4 (own module)
+go.work          - Workspace tying together the root, example/, integration/ and jwx/tool/ modules
 ```
 
 ## Commands
 
 ### Build
 
-This repo is a Go workspace (`go.work`) with three modules: the root, `example/` and `jwx/tool/`. `./...` only matches the module in the current directory, so the Makefile loops over all three; use `make` targets rather than bare `go vet ./...` to cover everything.
+This repo is a Go workspace (`go.work`) with four modules: the root, `example/`, `integration/` and `jwx/tool/`. `./...` only matches the module in the current directory, so the Makefile loops over all four; use `make` targets rather than bare `go vet ./...` to cover everything.
 
 - `make build` - Build the project
 - `make build-jwx` - Build the JWKS verification tool
@@ -84,6 +85,8 @@ This repo is a Go workspace (`go.work`) with three modules: the root, `example/`
   - KeyNotFoundError - missing cryptographic keys
   - InternalError - internal system errors
   - TokenExpiredError - expired tokens
+  - UnauthorizedError - returned by Verify for every rejected token; fixed message, specific cause wrapped (errors.As)
+- Use `errors.As`/`errors.Is` rather than `==` or type switches when errors may be wrapped
 - Use type assertions for specific error handling: `if _, ok := err.(*errors.ValidationError); ok`
 - Return early on errors to reduce nesting
 

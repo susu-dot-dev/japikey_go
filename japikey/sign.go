@@ -3,6 +3,11 @@ package japikey
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"fmt"
+	"math/big"
+	"net/url"
+	"path"
+	"strings"
 	"time"
 	"uuid"
 
@@ -12,11 +17,19 @@ import (
 )
 
 type Config struct {
-	Subject   string
+	Subject string
+	// Issuer is the base issuer URL, not the final "iss" claim. The key ID is
+	// appended to it (see BuildIssuer). It must be an absolute https URL with a
+	// host and no user info, query or fragment, in canonical form, ending in at
+	// most one "/" (see AllowInsecureHTTP for http).
 	Issuer    string
 	Audience  string
 	ExpiresAt time.Time
 	Claims    jwt.MapClaims
+
+	// AllowInsecureHTTP permits an http:// Issuer. It exists for local
+	// development and tests only; never enable it in production.
+	AllowInsecureHTTP bool
 }
 
 type JAPIKey struct {
@@ -37,6 +50,84 @@ func (j *JAPIKey) ToJWKS() (*jwks.JWKS, error) {
 	return jwks.NewJWKS(j.PublicKey, j.KeyID)
 }
 
+// BuildIssuer returns the issuer claim for a key: the base issuer URL joined
+// with the key ID by exactly one "/". A trailing slash on baseIssuerURL is
+// optional. The JWKS for the key is served at BuildIssuer(...)+"/.well-known/jwks.json".
+//
+// NewJAPIKey uses it to set "iss" and Verify uses it to check "iss", so the two
+// always agree.
+func BuildIssuer(baseIssuerURL string, keyID uuid.UUID) string {
+	return strings.TrimSuffix(baseIssuerURL, "/") + "/" + keyID.String()
+}
+
+// validateBaseIssuerURL checks that baseIssuerURL is a URL from which both
+// japikey and third-party verifiers derive the same issuer and JWKS location
+// (BuildIssuer(...)+"/.well-known/jwks.json"). It must:
+//   - parse as an absolute URL with an https scheme (http only when
+//     allowInsecureHTTP is set);
+//   - have a host, and no user info, query or fragment;
+//   - end with at most one "/";
+//   - be in canonical form (url.Parse + String round-trips exactly), so that
+//     the string placed in "iss" is exactly what a URL parser produces;
+//   - have a clean path with no escapes: no empty, "." or ".." segments.
+//
+// Error messages are fixed and never include the input.
+func validateBaseIssuerURL(baseIssuerURL string, allowInsecureHTTP bool) error {
+	if baseIssuerURL == "" {
+		return errors.NewValidationError("base issuer URL cannot be empty")
+	}
+	// Checked on the raw string: url.Parse drops an empty query ("?") or fragment ("#")
+	if strings.ContainsAny(baseIssuerURL, "?#") {
+		return errors.NewValidationError("base issuer URL must not contain a query or fragment")
+	}
+	u, err := url.Parse(baseIssuerURL)
+	if err != nil {
+		return errors.NewValidationError("base issuer URL is not a valid URL")
+	}
+	switch u.Scheme {
+	case "https":
+	case "http":
+		if !allowInsecureHTTP {
+			return errors.NewValidationError("base issuer URL must use https")
+		}
+	default:
+		return errors.NewValidationError("base issuer URL must use https")
+	}
+	if u.Opaque != "" || u.Hostname() == "" {
+		return errors.NewValidationError("base issuer URL must be absolute and include a host")
+	}
+	if u.User != nil {
+		return errors.NewValidationError("base issuer URL must not contain user info")
+	}
+	if strings.HasSuffix(baseIssuerURL, "//") {
+		return errors.NewValidationError("base issuer URL must not end with more than one slash")
+	}
+	if u.String() != baseIssuerURL {
+		return errors.NewValidationError("base issuer URL must be in canonical form")
+	}
+	// The JWKS route is matched by http.ServeMux, which redirects paths that are
+	// not clean (//, /./, /../) and decodes escapes, and HTTP clients may
+	// normalise dot segments, so such an issuer would not lead back to the
+	// JWKS. Require a clean, unescaped path. A single trailing "/" is allowed.
+	if u.RawPath != "" || strings.Contains(u.Path, "%") {
+		return errors.NewValidationError("base issuer URL path must not contain escaped characters")
+	}
+	if u.Path != "" {
+		cleaned := path.Clean(u.Path)
+		if strings.HasSuffix(u.Path, "/") && cleaned != "/" {
+			cleaned += "/"
+		}
+		if cleaned != u.Path {
+			return errors.NewValidationError("base issuer URL path must be clean (no empty, . or .. segments)")
+		}
+	}
+	return nil
+}
+
+// NewJAPIKey creates a new API key. Config.Issuer is the base issuer URL (for
+// example "https://api.example.com/keys"); the token's "iss" claim becomes
+// "<Issuer>/<key id>", which must match VerifyConfig.BaseIssuerURL when
+// verifying.
 func NewJAPIKey(config Config) (*JAPIKey, error) {
 	if err := validateConfig(config); err != nil {
 		return nil, err
@@ -55,9 +146,14 @@ func NewJAPIKey(config Config) (*JAPIKey, error) {
 	}
 	// Add the mandatory claims last, to ensure that user-provided claims cannot override them
 	claims["sub"] = config.Subject
-	claims["iss"] = config.Issuer
+	// The issuer is the base issuer URL joined with the key ID. Verify requires
+	// exactly this form, and it makes the JWKS location derivable from the token
+	// alone (<iss>/.well-known/jwks.json). The key ID is generated above, so the
+	// caller cannot supply the full issuer themselves.
+	claims["iss"] = BuildIssuer(config.Issuer, keyID)
 	claims["aud"] = config.Audience
 	claims["exp"] = config.ExpiresAt.Unix()
+	claims["iat"] = time.Now().Unix()
 	claims["ver"] = "japikey-v1"
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 
@@ -68,9 +164,24 @@ func NewJAPIKey(config Config) (*JAPIKey, error) {
 		return nil, errors.NewInternalError("failed to sign JWT")
 	}
 
+	// Reject tokens that Verify would refuse anyway (e.g. oversized custom claims)
+	if len(jwtString) > MaxTokenSize {
+		return nil, errors.NewValidationError(fmt.Sprintf("generated token exceeds maximum allowed size of %d bytes", MaxTokenSize))
+	}
+
+	// Copy the public key out of the private key struct. Returning
+	// &privateKey.PublicKey would be an interior pointer, which keeps the entire
+	// rsa.PrivateKey (D, primes, precomputed values) reachable by the GC for as
+	// long as the caller holds the public key. The private key is meant to be
+	// discarded as soon as this function returns.
+	publicKey := &rsa.PublicKey{
+		N: new(big.Int).Set(privateKey.N),
+		E: privateKey.E,
+	}
+
 	result := &JAPIKey{
 		JWT:       jwtString,
-		PublicKey: &privateKey.PublicKey,
+		PublicKey: publicKey,
 		KeyID:     keyID,
 	}
 
@@ -82,8 +193,12 @@ func validateConfig(config Config) error {
 		return errors.NewValidationError("subject cannot be empty")
 	}
 
-	if config.ExpiresAt.Before(time.Now()) {
-		return errors.NewValidationError("expiration time must be in the future")
+	if err := validateBaseIssuerURL(config.Issuer, config.AllowInsecureHTTP); err != nil {
+		return err
+	}
+
+	if config.ExpiresAt.Before(time.Now().Add(MinKeyLifetime)) {
+		return errors.NewValidationError(fmt.Sprintf("expiration time must be at least %s in the future", MinKeyLifetime))
 	}
 
 	return nil

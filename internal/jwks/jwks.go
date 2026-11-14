@@ -32,6 +32,43 @@ type encodedJWKS struct {
 	Keys []encodedJWK `json:"keys"`
 }
 
+const (
+	// MinModulusBits and MaxModulusBits bound the accepted RSA modulus size.
+	// The minimum matches what NewJAPIKey generates; the maximum bounds verification CPU cost.
+	MinModulusBits = 2048
+	MaxModulusBits = 4096
+
+	// MinExponent and MaxExponent bound the accepted RSA public exponent. The maximum
+	// matches the limit enforced by Go's crypto/rsa. The exponent must also be odd.
+	MinExponent = 3
+	MaxExponent = 1<<31 - 1
+)
+
+// ValidatePublicKey rejects RSA public keys that are structurally unusable or too weak:
+// the modulus must be odd and within [MinModulusBits, MaxModulusBits] bits, and the
+// exponent must be odd and within [MinExponent, MaxExponent].
+//
+// It is applied both when building a JWKS and to every key a verification
+// callback returns, so a key cannot bypass it by coming from another source.
+func ValidatePublicKey(publicKey *rsa.PublicKey) error {
+	if publicKey == nil {
+		return errors.NewValidationError("RSA public key cannot be nil")
+	}
+	if publicKey.N == nil || publicKey.N.Sign() <= 0 {
+		return errors.NewValidationError("RSA modulus must be a positive integer")
+	}
+	if bits := publicKey.N.BitLen(); bits < MinModulusBits || bits > MaxModulusBits {
+		return errors.NewValidationError("RSA modulus size is not supported")
+	}
+	if publicKey.N.Bit(0) == 0 {
+		return errors.NewValidationError("RSA modulus must be odd")
+	}
+	if publicKey.E < MinExponent || publicKey.E > MaxExponent || publicKey.E%2 == 0 {
+		return errors.NewValidationError("RSA exponent is not supported")
+	}
+	return nil
+}
+
 func NewJWKS(publicKey *rsa.PublicKey, kid uuid.UUID) (*JWKS, error) {
 	if publicKey == nil {
 		return nil, errors.NewValidationError("RSA public key cannot be nil")
@@ -39,6 +76,10 @@ func NewJWKS(publicKey *rsa.PublicKey, kid uuid.UUID) (*JWKS, error) {
 
 	if kid == uuid.Nil() {
 		return nil, errors.NewValidationError("key ID cannot be empty")
+	}
+
+	if err := ValidatePublicKey(publicKey); err != nil {
+		return nil, err
 	}
 
 	modulusBase64 := base64urlUIntEncode(publicKey.N)
@@ -89,9 +130,11 @@ func (j *JWKS) UnmarshalJSON(data []byte) error {
 	if err := j.validateJSONShape(data); err != nil {
 		return err
 	}
+	// Error messages below are fixed strings. The errors from encoding/json and
+	// encoding/base64 can quote parts of the input, which must not be echoed.
 	ejwks := encodedJWKS{}
 	if err := json.Unmarshal(data, &ejwks); err != nil {
-		return errors.NewValidationError("invalid JWKS JSON format: " + err.Error())
+		return errors.NewValidationError("invalid JWKS JSON format")
 	}
 	ejwk := ejwks.Keys[0]
 	if ejwk.Kty != "RSA" {
@@ -99,12 +142,17 @@ func (j *JWKS) UnmarshalJSON(data []byte) error {
 	}
 	modulus, err := base64urlUIntDecode(ejwk.N)
 	if err != nil {
-		return errors.NewValidationError("failed to decode modulus: " + err.Error())
+		return errors.NewValidationError("failed to decode modulus")
 	}
 
 	exponent, err := base64urlUIntDecode(ejwk.E)
 	if err != nil {
-		return errors.NewValidationError("failed to decode exponent: " + err.Error())
+		return errors.NewValidationError("failed to decode exponent")
+	}
+
+	// Check the range before converting, so a huge exponent cannot be truncated into a valid one
+	if !exponent.IsInt64() || exponent.Int64() < MinExponent || exponent.Int64() > MaxExponent {
+		return errors.NewValidationError("RSA exponent is not supported")
 	}
 
 	publicKey := &rsa.PublicKey{
@@ -119,7 +167,7 @@ func (j *JWKS) UnmarshalJSON(data []byte) error {
 
 	// Round-trip validation ensures encoded values match exactly
 	if jwks.jwk.n != ejwk.N || jwks.jwk.e != ejwk.E {
-		return errors.NewConversionError("round-trip validation failed: n values do not match")
+		return errors.NewConversionError("round-trip validation failed: n or e values do not match")
 	}
 	j.jwk = jwks.jwk
 
@@ -132,7 +180,7 @@ func (j *JWKS) validateJSONShape(data []byte) error {
 		Keys []map[string]interface{} `json:"keys"`
 	}
 	if err := json.Unmarshal(data, &jwksUntyped); err != nil {
-		return errors.NewValidationError("invalid JWKS JSON format: " + err.Error())
+		return errors.NewValidationError("invalid JWKS JSON format")
 	}
 
 	if len(jwksUntyped.Keys) != 1 {
@@ -178,7 +226,7 @@ func base64urlUIntDecode(s string) (*big.Int, error) {
 
 	bytes, err := base64.RawURLEncoding.DecodeString(s)
 	if err != nil {
-		return nil, errors.NewValidationError("invalid Base64urlUInt encoding: " + err.Error())
+		return nil, errors.NewValidationError("invalid Base64urlUInt encoding")
 	}
 
 	return new(big.Int).SetBytes(bytes), nil

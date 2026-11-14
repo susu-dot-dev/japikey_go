@@ -206,10 +206,12 @@ func TestJWKS_SerializationToJSON(t *testing.T) {
 	}
 }
 
+const validTestModulusB64 = "vFq8NCGpU6VJ-QL3K3_aP4O60EZtD1-y1xJC5to7QxDaKHF8s4h-A_b0j3I-sfRQeaZbArrcX-Eq8j5UZ_UMFJ17ke6X8RofHvv02ZE7KD5A7XwzsUbjiWqjsQrCP68Zx5ogpBZswdgF-Lx74ts7eQfsC7BRulGP2GDrXJSgufci9J-qS2tZe4GmpozThnPsOclJ-K4gwQ-A9L1tsJ4GW4DHFM8rzC-3MD42PUgDBf719Y7rz0M_BopJ-Jvl8lP0m4iFVRom2cEAIOVF-9J4fv7n93OP0wNGJkA7WQ5bUshNALctiScGVkMZt3r7J-h68AQ461evd7c_4OX8lVQPqQ"
+
 func TestJWKS_DeserializationFromJSON(t *testing.T) {
 	// Arrange
 	keyID := uuid.New()
-	jsonStr := `{"keys":[{"kty":"RSA","kid":"` + keyID.String() + `","n":"0vx7agoebGcQSuuPiLJXZptN9nndrQmbPFRP_gdM_X7zVFQ84l8g7hQg-jC6SGODpEcF7yR3xNgQBKzAV-OdSQ","e":"AQAB"}]}`
+	jsonStr := `{"keys":[{"kty":"RSA","kid":"` + keyID.String() + `","n":"` + validTestModulusB64 + `","e":"AQAB"}]}`
 
 	// Act
 	var jwks JWKS
@@ -860,7 +862,7 @@ func TestJWKS_MissingE(t *testing.T) {
 func TestJWKS_ExtraTopLevelKeys(t *testing.T) {
 	// Arrange: JSON with extra top-level keys (should be allowed)
 	keyID := uuid.New()
-	jsonStr := `{"keys":[{"kty":"RSA","kid":"` + keyID.String() + `","n":"0vx7agoebGcQSuuPiLJXZptN9nndrQmbPFRP_gdM_X7zVFQ84l8g7hQg-jC6SGODpEcF7yR3xNgQBKzAV-OdSQ","e":"AQAB"}],"extra":"field"}`
+	jsonStr := `{"keys":[{"kty":"RSA","kid":"` + keyID.String() + `","n":"` + validTestModulusB64 + `","e":"AQAB"}],"extra":"field"}`
 
 	// Act
 	var jwks JWKS
