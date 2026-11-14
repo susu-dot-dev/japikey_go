@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/susu-dot-dev/japikey/errors"
 	internaljwks "github.com/susu-dot-dev/japikey/internal/jwks"
 )

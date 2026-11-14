@@ -2,15 +2,16 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
+	"uuid"
 
-	"github.com/google/uuid"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 // JWKS represents the structure of a JSON Web Key Set
@@ -44,7 +45,7 @@ func GenerateExampleKeys() (string, error) {
 	return publicKeyBase64, nil
 }
 
-func generateAction(c *cli.Context) error {
+func generateAction(ctx context.Context, c *cli.Command) error {
 	// Validate that we have the required argument (key ID)
 	if c.NArg() != 1 {
 		return fmt.Errorf("expected exactly one argument: KEY_ID")

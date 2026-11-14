@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"uuid"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
 	japikeyerrors "github.com/susu-dot-dev/japikey/errors"
 )
 
@@ -88,17 +88,17 @@ func validateIssuer(issuer string, baseIssuerURL string, keyID uuid.UUID) error 
 func extractKeyIDFromHeader(header map[string]interface{}) (uuid.UUID, error) {
 	keyIDRaw, ok := header[KeyIDHeader]
 	if !ok {
-		return uuid.Nil, japikeyerrors.NewValidationError("token header missing key ID")
+		return uuid.Nil(), japikeyerrors.NewValidationError("token header missing key ID")
 	}
 
 	keyIDStr, ok := keyIDRaw.(string)
 	if !ok {
-		return uuid.Nil, japikeyerrors.NewValidationError("token header contains invalid key ID type")
+		return uuid.Nil(), japikeyerrors.NewValidationError("token header contains invalid key ID type")
 	}
 
 	keyID, err := uuid.Parse(keyIDStr)
 	if err != nil {
-		return uuid.Nil, japikeyerrors.NewValidationError("token header contains invalid key ID format")
+		return uuid.Nil(), japikeyerrors.NewValidationError("token header contains invalid key ID format")
 	}
 
 	return keyID, nil

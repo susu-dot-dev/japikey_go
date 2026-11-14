@@ -4,7 +4,7 @@ Thank you for your interest in contributing to japikey-go! This document outline
 
 ## Prerequisites
 
-- Go 1.21 or later
+- Go 1.27 or later
 - Linux or Mac operating system (Windows is not supported)
 - Git
 
@@ -88,7 +88,7 @@ make test-coverage
 ## Troubleshooting
 
 ### Go Version Issues
-If you encounter issues with Go versions, ensure you're using Go 1.21 or later:
+If you encounter issues with Go versions, ensure you're using Go 1.27 or later:
 ```bash
 go version
 ```

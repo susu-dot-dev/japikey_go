@@ -9,8 +9,8 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/susu-dot-dev/japikey/errors"
 )
 
@@ -100,7 +100,7 @@ func TestNewJWK_WithInvalidKeyID_ReturnsError(t *testing.T) {
 		t.Fatalf("Failed to generate RSA key: %v", err)
 	}
 	publicKey := &privateKey.PublicKey
-	invalidKeyID := uuid.Nil // This is an invalid key ID
+	invalidKeyID := uuid.Nil() // This is an invalid key ID
 
 	// Act
 	jwks, err := NewJWKS(publicKey, invalidKeyID)
@@ -604,7 +604,7 @@ func TestJWKS_GetKeyID_WithInvalidJWKS(t *testing.T) {
 	// Create an invalid JWKS with an empty key ID
 	jwks := &JWKS{
 		jwk: JWK{
-			kid: uuid.Nil, // Invalid empty UUID
+			kid: uuid.Nil(), // Invalid empty UUID
 			n:   "some_n_value",
 			e:   "some_e_value",
 		},
@@ -614,7 +614,7 @@ func TestJWKS_GetKeyID_WithInvalidJWKS(t *testing.T) {
 	retrievedKeyID := jwks.GetKeyID()
 
 	// Assert
-	if retrievedKeyID != uuid.Nil {
+	if retrievedKeyID != uuid.Nil() {
 		t.Errorf("Expected key ID to be empty when JWKS is invalid, but got %s", retrievedKeyID)
 	}
 }

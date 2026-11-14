@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"uuid"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
 	"github.com/susu-dot-dev/japikey/errors"
 )
 
@@ -38,7 +38,7 @@ func TestNewJAPIKey_WithValidInputs_ReturnsValidJWT(t *testing.T) {
 		t.Error("Expected JWT to be populated, but it was empty")
 	}
 
-	if result.KeyID == uuid.Nil {
+	if result.KeyID == uuid.Nil() {
 		t.Error("Expected KeyID to be populated, but it was empty")
 	}
 
@@ -335,7 +335,7 @@ func TestPrivateKeyNotAccessibleAfterCreation(t *testing.T) {
 		t.Error("Expected JWT to be populated")
 	}
 
-	if result.KeyID == uuid.Nil {
+	if result.KeyID == uuid.Nil() {
 		t.Error("Expected KeyID to be populated")
 	}
 
@@ -392,7 +392,7 @@ func TestThreadSafety(t *testing.T) {
 		if result.JWT == "" {
 			t.Error("Expected JWT to be populated")
 		}
-		if result.KeyID == uuid.Nil {
+		if result.KeyID == uuid.Nil() {
 			t.Error("Expected KeyID to be populated")
 		}
 		if result.PublicKey == nil {
@@ -481,7 +481,7 @@ func TestConcurrentAPIKeyGeneration(t *testing.T) {
 		if result.JWT == "" {
 			t.Error("Expected JWT to be populated")
 		}
-		if result.KeyID == uuid.Nil {
+		if result.KeyID == uuid.Nil() {
 			t.Error("Expected KeyID to be populated")
 		}
 		if result.PublicKey == nil {
@@ -594,7 +594,7 @@ func TestPrivateKeyNeverAccessibleAfterCreation(t *testing.T) {
 		t.Error("Expected JWT to be populated")
 	}
 
-	if result.KeyID == uuid.Nil {
+	if result.KeyID == uuid.Nil() {
 		t.Error("Expected KeyID to be populated")
 	}
 
@@ -646,7 +646,7 @@ func TestIntegrationFullWorkflow(t *testing.T) {
 		t.Error("Expected JWT to be populated")
 	}
 
-	if result.KeyID == uuid.Nil {
+	if result.KeyID == uuid.Nil() {
 		t.Error("Expected KeyID to be populated")
 	}
 
@@ -838,8 +838,8 @@ func TestJAPIKey_ToJWKS_WithInvalidKeyID_ReturnsValidationError(t *testing.T) {
 		t.Fatalf("Failed to create JAPIKey: %v", err)
 	}
 
-	// Set invalid key ID (uuid.Nil)
-	japikey.KeyID = uuid.Nil
+	// Set invalid key ID (uuid.Nil())
+	japikey.KeyID = uuid.Nil()
 
 	// Act
 	jwks, err := japikey.ToJWKS()

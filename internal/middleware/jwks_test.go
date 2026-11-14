@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/susu-dot-dev/japikey/errors"
 )
 

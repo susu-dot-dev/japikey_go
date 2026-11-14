@@ -4,9 +4,9 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"time"
+	"uuid"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
 	"github.com/susu-dot-dev/japikey/errors"
 	"github.com/susu-dot-dev/japikey/internal/jwks"
 )
@@ -26,7 +26,7 @@ type JAPIKey struct {
 }
 
 func (j *JAPIKey) ToJWKS() (*jwks.JWKS, error) {
-	if j.KeyID == uuid.Nil {
+	if j.KeyID == uuid.Nil() {
 		return nil, errors.NewValidationError("key ID cannot be empty")
 	}
 

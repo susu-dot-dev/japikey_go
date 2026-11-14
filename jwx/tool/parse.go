@@ -2,18 +2,17 @@ package main
 
 import (
 	"bufio"
-	"crypto/rsa"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"math/big"
 	"os"
 
-	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
-func parseAction(c *cli.Context) error {
+func parseAction(ctx context.Context, c *cli.Command) error {
 	// Read JSON from stdin
 	scanner := bufio.NewScanner(os.Stdin)
 	input := ""
@@ -99,60 +98,6 @@ func parseAction(c *cli.Context) error {
 
 	// Output the public key as base64 (we'll encode the modulus as base64)
 	publicKeyBase64 := base64.StdEncoding.EncodeToString(modulus.Bytes())
-	fmt.Println(publicKeyBase64)
-
-	return nil
-}
-
-// Alternative implementation using lestrrat-go/jwx/jwk for validation
-func parseActionWithJWX(c *cli.Context) error {
-	// Read JSON from stdin
-	scanner := bufio.NewScanner(os.Stdin)
-	input := ""
-	for scanner.Scan() {
-		input += scanner.Text()
-	}
-
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("error reading from stdin: %w", err)
-	}
-
-	// Parse the JWK using the jwx library
-	set, err := jwk.ParseString(input)
-	if err != nil {
-		return fmt.Errorf("invalid JWK JSON: %w", err)
-	}
-
-	if set.Len() != 1 {
-		return fmt.Errorf("expected exactly one key in JWK set, got: %d", set.Len())
-	}
-
-	// Get the first key
-	key, ok := set.Key(0)
-	if !ok {
-		return fmt.Errorf("failed to get key from JWK set")
-	}
-
-	// Check that it's an RSA key
-	if string(key.KeyType()) != "RSA" {
-		return fmt.Errorf("key type must be RSA, got: %s", key.KeyType())
-	}
-
-	// Convert to raw key to get the public key
-	var rawKey interface{}
-	if err := key.Raw(&rawKey); err != nil {
-		return fmt.Errorf("failed to get raw key: %w", err)
-	}
-
-	// Type assert to *rsa.PublicKey
-	rsaKey, ok := rawKey.(*rsa.PublicKey)
-	if !ok {
-		return fmt.Errorf("failed to convert to RSA public key")
-	}
-
-	// Get the modulus as bytes and encode as base64
-	modulusBytes := rsaKey.N.Bytes()
-	publicKeyBase64 := base64.StdEncoding.EncodeToString(modulusBytes)
 	fmt.Println(publicKeyBase64)
 
 	return nil
