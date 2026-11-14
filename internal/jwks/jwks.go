@@ -5,8 +5,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"math/big"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/susu-dot-dev/japikey/errors"
 )
 
@@ -37,7 +37,7 @@ func NewJWKS(publicKey *rsa.PublicKey, kid uuid.UUID) (*JWKS, error) {
 		return nil, errors.NewValidationError("RSA public key cannot be nil")
 	}
 
-	if kid == uuid.Nil {
+	if kid == uuid.Nil() {
 		return nil, errors.NewValidationError("key ID cannot be empty")
 	}
 
@@ -52,7 +52,7 @@ func NewJWKS(publicKey *rsa.PublicKey, kid uuid.UUID) (*JWKS, error) {
 		publicKey: publicKey,
 	}
 
-	if jwk.kid == uuid.Nil {
+	if jwk.kid == uuid.Nil() {
 		return nil, errors.NewValidationError("kid parameter cannot be empty")
 	}
 

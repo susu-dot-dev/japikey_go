@@ -111,12 +111,12 @@ fmt.Println(string(jwksJSON))
 ```go
 import (
     "crypto/rsa"
-    "github.com/google/uuid"
+    "uuid"
 )
 
 // Create JWKS directly from RSA public key and UUID
 publicKey := /* your RSA public key */
-keyID := uuid.Must(uuid.Parse("123e4567-e89b-12d3-a456-426614174000"))
+keyID := uuid.MustParse("123e4567-e89b-12d3-a456-426614174000")
 
 jwks, err := japikey.NewJWKS(publicKey, keyID)
 if err != nil {

@@ -2,10 +2,10 @@
 
 ## Active Technologies
 
-- Go 1.25.5
+- Go 1.27.4
 - Go standard library (crypto/rand, crypto/rsa, encoding/base64, encoding/json)
 - github.com/golang-jwt/jwt/v5 for JWT creation and verification
-- github.com/google/uuid for UUID handling
+- Go standard library uuid package (new in Go 1.27) for UUID handling
 
 ## Project Structure
 

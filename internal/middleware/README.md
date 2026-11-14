@@ -28,7 +28,7 @@ package main
 import (
 	"context"
 	"crypto/rsa"
-	"github.com/google/uuid"
+	"uuid"
 	"errors"
 	"github.com/susu-dot-dev/japikey"
 	"github.com/susu-dot-dev/japikey/errors"

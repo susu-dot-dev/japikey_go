@@ -6,8 +6,8 @@ package japikey
 import (
 	"crypto/rsa"
 	"net/http"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/susu-dot-dev/japikey/errors"
 	"github.com/susu-dot-dev/japikey/internal/jwks"
 	"github.com/susu-dot-dev/japikey/internal/middleware"

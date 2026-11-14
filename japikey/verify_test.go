@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"uuid"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
 	"github.com/susu-dot-dev/japikey/errors"
 )
 
@@ -18,7 +18,7 @@ func createValidToken() (string, *rsa.PublicKey, uuid.UUID, error) {
 	// Create a private key for signing
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		return "", nil, uuid.Nil, err
+		return "", nil, uuid.Nil(), err
 	}
 
 	// Generate a UUID for the key ID
@@ -40,7 +40,7 @@ func createValidToken() (string, *rsa.PublicKey, uuid.UUID, error) {
 	// Sign the token
 	tokenString, err := token.SignedString(privateKey)
 	if err != nil {
-		return "", nil, uuid.Nil, err
+		return "", nil, uuid.Nil(), err
 	}
 
 	// Return the token, public key, and key ID
@@ -102,7 +102,7 @@ func TestVerifyValidToken(t *testing.T) {
 		t.Error("Expected claims to not be nil for valid token")
 	}
 
-	if result.KeyID == uuid.Nil {
+	if result.KeyID == uuid.Nil() {
 		t.Error("Expected key ID to not be empty for valid token")
 	}
 
