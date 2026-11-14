@@ -1,6 +1,6 @@
-# Contributing to japikey-go
+# Contributing to japikey
 
-Thank you for your interest in contributing to japikey-go! This document outlines the process for contributing to this project.
+Thank you for your interest in contributing to japikey! This document outlines the process for contributing to this project.
 
 ## Prerequisites
 
@@ -13,12 +13,12 @@ Thank you for your interest in contributing to japikey-go! This document outline
 1. Fork the repository on GitHub
 2. Clone your fork locally:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/japikey-go.git
-   cd japikey-go
+   git clone https://github.com/YOUR_USERNAME/japikey.git
+   cd japikey
    ```
 3. Add the upstream repository as a remote:
    ```bash
-   git remote add upstream https://github.com/susu-dot-dev/japikey-go.git
+   git remote add upstream https://github.com/susu-dot-dev/japikey.git
    ```
 
 ## Development Workflow
@@ -48,13 +48,13 @@ Thank you for your interest in contributing to japikey-go! This document outline
 
 This project uses a Makefile for common development tasks:
 
-- `make test` - Run tests
+- `make test` - Run tests in all four modules
 - `make lint` - Run linter
 - `make fmt` - Format code
 - `make vet` - Vet code for common issues
 - `make check` - Run all checks (fmt, vet, lint, test)
 - `make build` - Build the project
-- `make ci` - Run all checks and build (for CI)
+- `make ci` - Run tidy, fmt, vet, lint, test and build (for CI)
 
 ## Code Style
 

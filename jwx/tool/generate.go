@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
@@ -9,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"uuid"
 
 	"github.com/urfave/cli/v3"
@@ -59,15 +59,11 @@ func generateAction(ctx context.Context, c *cli.Command) error {
 	}
 
 	// Read base64 public key from stdin
-	scanner := bufio.NewScanner(os.Stdin)
-	publicKeyBase64 := ""
-	for scanner.Scan() {
-		publicKeyBase64 += scanner.Text()
+	publicKeyBase64, err := readLimited(os.Stdin, maxInputSize)
+	if err != nil {
+		return err
 	}
-
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("error reading from stdin: %w", err)
-	}
+	publicKeyBase64 = strings.TrimSpace(publicKeyBase64)
 
 	// Check if input is empty
 	if publicKeyBase64 == "" {

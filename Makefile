@@ -18,7 +18,7 @@ GOLINT=golangci-lint
 
 # Modules in the go.work workspace. "./..." only matches the module in the
 # current directory, so targets that need to cover everything loop over these.
-MODULES=. example jwx/tool
+MODULES=. example integration jwx/tool
 
 # Binary name
 BINARY_NAME=japikey-go

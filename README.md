@@ -1,6 +1,6 @@
 # JAPIKey
 
-JAPIKey is a Go library for generating and verifying secure API keys using JWT technology. It follows the japikey specification and provides both generation and verification of API keys with proper cryptographic signatures without storing secrets in a database.
+JAPIKey is a Go library for minting and verifying API keys as RS256 JWTs. Each key gets its own RSA key pair; the private key is discarded after signing, so only the public key needs to be stored (and served as a JWKS).
 
 ## Installation
 
@@ -22,32 +22,26 @@ import (
 )
 
 func main() {
-    // Create a config with required fields
     config := japikey.Config{
-        Subject:   "user-123",
+        Subject: "user-123",
+        // Base issuer URL; the token's iss becomes "<Issuer>/<key id>", and its
+        // JWKS is served at "<iss>/.well-known/jwks.json". Must be https (see
+        // AllowInsecureHTTP), canonical, with no query, fragment or user info.
         Issuer:    "https://myapp.com",
         Audience:  "myapp-users",
-        ExpiresAt: time.Now().Add(24 * time.Hour), // 24 hours from now
+        ExpiresAt: time.Now().Add(24 * time.Hour), // at least 5s in the future
     }
 
-    // Generate the JAPIKey
     result, err := japikey.NewJAPIKey(config)
     if err != nil {
-        // Handle error appropriately
-        if validationErr, ok := err.(*japikey.JAPIKeyValidationError); ok {
-            fmt.Printf("Validation error: %s\n", validationErr.Message)
-        } else if genErr, ok := err.(*japikey.JAPIKeyGenerationError); ok {
-            fmt.Printf("Generation error: %s\n", genErr.Message)
-        } else if signingErr, ok := err.(*japikey.JAPIKeySigningError); ok {
-            fmt.Printf("Signing error: %s\n", signingErr.Message)
-        }
+        // *japikey.ValidationError (bad config, token too large) or *japikey.InternalError
+        fmt.Println(err)
         return
     }
 
-    // Use the generated JWT and public key
-    fmt.Printf("Generated JWT: %s\n", result.JWT)
+    // Give result.JWT to the user once. Store result.PublicKey and result.KeyID;
+    // the private key no longer exists. Do not log the JWT: it is the secret.
     fmt.Printf("Key ID: %s\n", result.KeyID)
-    fmt.Printf("Public Key: %+v\n", result.PublicKey)
 }
 ```
 
@@ -57,56 +51,55 @@ func main() {
 package main
 
 import (
+    "context"
     "crypto/rsa"
+    "errors"
     "fmt"
+    "log"
     "time"
+    "uuid"
     "github.com/susu-dot-dev/japikey"
 )
 
 func main() {
-    // Example token string (this would come from your API request)
-    tokenString := "your.jwt.token.here"
+    tokenString := "your.jwt.token.here" // from the request
 
-    // Create verification config
     config := japikey.VerifyConfig{
-        BaseIssuerURL: "https://myapp.com/",  // Base URL for issuer validation
-        Timeout:       5 * time.Second,       // Timeout for key retrieval
+        BaseIssuerURL: "https://myapp.com", // same rules as Config.Issuer
+        Timeout:       5 * time.Second,     // key retrieval; default 5s
+        Audience:      "myapp-users",       // not checked when empty; set it
     }
 
-    // Define a function to retrieve the public key by key ID
-    keyFunc := func(keyID string) (*rsa.PublicKey, error) {
-        // Implement your logic to retrieve the public key
-        // This might involve fetching from a JWKS endpoint
-        return retrievePublicKey(keyID)
+    // Look up the public key. Honor ctx for any I/O. Return a
+    // *japikey.KeyNotFoundError if the key does not exist or is revoked.
+    keyFunc := func(ctx context.Context, keyID uuid.UUID) (*rsa.PublicKey, error) {
+        return retrievePublicKey(ctx, keyID)
     }
 
-    // Verify the token
-    result, err := japikey.Verify(tokenString, config, keyFunc)
+    result, err := japikey.Verify(context.Background(), tokenString, config, keyFunc)
     if err != nil {
-        // Handle verification error
-        if verificationErr, ok := err.(*japikey.JAPIKeyVerificationError); ok {
-            fmt.Printf("Verification failed: %s (%s)\n", verificationErr.Message, verificationErr.Code)
-        } else {
-            fmt.Printf("Verification failed: %v\n", err)
+        // *UnauthorizedError for every rejected token: send the same 401 for
+        // all, and log Cause only. *DatabaseTimeoutError and *InternalError
+        // are server-side (503 / 500). See japikey/README.md.
+        var unauthorized *japikey.UnauthorizedError
+        if errors.As(err, &unauthorized) {
+            log.Printf("token rejected: %v", unauthorized.Cause)
         }
         return
     }
 
-    // Use the validated claims
-    fmt.Printf("Validated claims: %+v\n", result.Claims)
-    fmt.Printf("Key ID: %s\n", result.KeyID)
+    fmt.Printf("Claims: %+v, key ID: %s\n", result.Claims, result.KeyID)
 }
 
-// Example function to retrieve public key by key ID
-func retrievePublicKey(keyID string) (*rsa.PublicKey, error) {
-    // This is a placeholder implementation
-    // In a real application, you would fetch the key from a JWKS endpoint
-    // or from a local cache of known public keys
+// retrievePublicKey is yours to implement (database, or a fetch of the JWKS endpoint).
+func retrievePublicKey(ctx context.Context, keyID uuid.UUID) (*rsa.PublicKey, error) {
     return nil, fmt.Errorf("not implemented")
 }
 ```
 
 ### Adding Custom Claims
+
+`sub`, `iss`, `aud`, `exp`, `iat` and `ver` are set by the library and cannot be overridden.
 
 ```go
 config := japikey.Config{
@@ -122,50 +115,28 @@ config := japikey.Config{
 }
 
 result, err := japikey.NewJAPIKey(config)
-if err != nil {
-    // Handle error...
-    return
-}
-
-fmt.Printf("JWT with custom claims: %s\n", result.JWT)
 ```
+
+The token must stay within 4096 bytes.
 
 ## Error Handling
 
-The library provides structured error types for different failure scenarios:
+- `NewJAPIKey`: `*ValidationError` (invalid config, oversized token) or `*InternalError`.
+- `Verify`: `*UnauthorizedError` for every rejected token, `*DatabaseTimeoutError`, or `*InternalError`. See [japikey/README.md](japikey/README.md).
 
-- `JAPIKeyValidationError`: Input validation failures
-- `JAPIKeyGenerationError`: Cryptographic key generation failures
-- `JAPIKeySigningError`: JWT signing failures
+Use `errors.As` to match them.
 
-Use type assertions to handle specific error cases:
+## Serving the JWKS
 
-```go
-_, err := japikey.NewJAPIKey(config)
-if err != nil {
-    switch err := err.(type) {
-    case *japikey.JAPIKeyValidationError:
-        // Handle validation error
-        fmt.Printf("Validation failed: %s\n", err.Message)
-    case *japikey.JAPIKeyGenerationError:
-        // Handle generation error
-        fmt.Printf("Key generation failed: %s\n", err.Message)
-    case *japikey.JAPIKeySigningError:
-        // Handle signing error
-        fmt.Printf("Signing failed: %s\n", err.Message)
-    default:
-        // Handle other errors
-        fmt.Printf("Unexpected error: %v\n", err)
-    }
-}
-```
+`japikey.CreateJWKSRouter` serves `/{kid}/.well-known/jwks.json` from your `DatabaseDriver`; see [internal/middleware/README.md](internal/middleware/README.md). Mount it so the full URL is `<iss>/.well-known/jwks.json`.
+
+Third-party verifiers must not trust `iss` to locate the JWKS: check that it equals your configured base URL plus `/<uuid>` before fetching.
 
 ## Security
 
-- Each API key is generated with a unique RSA key pair (2048-bit)
-- Private keys are discarded immediately after signing to ensure they're never stored
-- The library follows JWT standards (RFC 7519) for token structure and claims
-- Thread-safe operation is supported for concurrent API key generation requests
+- Each key uses its own 2048-bit RSA pair; the private key is discarded after signing (it is not zeroed from memory).
+- RS256 only; tokens over 4096 bytes are rejected. `exp` and `nbf` have no clock skew tolerance; `iat` allows 30s.
+- Revocation takes effect when the JWKS stops being served (or `MaxAgeSeconds` caches expire). Keys have no maximum lifetime.
 
 ## License
 

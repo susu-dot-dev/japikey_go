@@ -4,6 +4,7 @@
 package japikey
 
 import (
+	"context"
 	"crypto/rsa"
 	"net/http"
 	"uuid"
@@ -26,11 +27,24 @@ type ValidationError = errors.ValidationError
 
 type ConversionError = errors.ConversionError
 
-// KeyNotFoundError is kept separate from ValidationError because clients may need different behavior
-// (e.g., retry with different key, fetch from different source)
+// KeyNotFoundError reports an unknown or revoked key ID. JWKCallback and
+// DatabaseDriver implementations return it. Verify never returns it directly;
+// it is the Cause of an UnauthorizedError.
 type KeyNotFoundError = errors.KeyNotFoundError
 
 type InternalError = errors.InternalError
+
+// UnauthorizedError is returned by Verify for every rejected token. Its
+// message is fixed; respond identically (e.g. HTTP 401) to all of them and use
+// the wrapped cause (errors.As) for logging only.
+type UnauthorizedError = errors.UnauthorizedError
+
+// TokenExpiredError is the cause of an UnauthorizedError for a correctly
+// signed token whose exp has passed.
+type TokenExpiredError = errors.TokenExpiredError
+
+// DatabaseTimeoutError is returned by Verify when key retrieval times out.
+type DatabaseTimeoutError = errors.DatabaseTimeoutError
 
 type JWKS = jwks.JWKS
 
@@ -52,8 +66,8 @@ type VerificationResult = japikey.VerificationResult
 
 // Verify takes in the JWT string, the config, as well as a callback function which retrieves the JWK if given the key id.
 // It either returns the validated claims, or an appropriate error.
-func Verify(tokenString string, config VerifyConfig, keyFunc JWKCallback) (*VerificationResult, error) {
-	return japikey.Verify(tokenString, config, keyFunc)
+func Verify(ctx context.Context, tokenString string, config VerifyConfig, keyFunc JWKCallback) (*VerificationResult, error) {
+	return japikey.Verify(ctx, tokenString, config, keyFunc)
 }
 
 // ShouldVerify is a pre-validation function that checks if a token has the correct format before full verification.

@@ -1,14 +1,16 @@
 package middleware
 
 import (
+	"bytes"
 	"context"
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
-	"math/big"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 	"uuid"
@@ -26,7 +28,7 @@ func (m *MockDatabaseDriver) GetKey(ctx context.Context, kid string) (*KeyLookup
 
 func TestJWKSEndpoint_ValidKey_Returns200(t *testing.T) {
 	publicKey := &rsa.PublicKey{
-		N: new(big.Int).SetInt64(12345),
+		N: validTestModulus(t),
 		E: 65537,
 	}
 
@@ -63,7 +65,7 @@ func TestJWKSEndpoint_ValidKey_Returns200(t *testing.T) {
 
 func TestJWKSEndpoint_CacheControlHeader(t *testing.T) {
 	publicKey := &rsa.PublicKey{
-		N: new(big.Int).SetInt64(12345),
+		N: validTestModulus(t),
 		E: 65537,
 	}
 
@@ -140,7 +142,7 @@ func TestJWKSEndpoint_CacheControlHeader(t *testing.T) {
 
 func TestJWKSEndpoint_ContainsExactlyOneKey(t *testing.T) {
 	publicKey := &rsa.PublicKey{
-		N: new(big.Int).SetInt64(12345),
+		N: validTestModulus(t),
 		E: 65537,
 	}
 
@@ -190,7 +192,7 @@ func TestJWKSEndpoint_ContainsExactlyOneKey(t *testing.T) {
 
 func TestJWKSEndpoint_ValidRFC7517Format(t *testing.T) {
 	publicKey := &rsa.PublicKey{
-		N: new(big.Int).SetInt64(12345),
+		N: validTestModulus(t),
 		E: 65537,
 	}
 
@@ -229,7 +231,7 @@ func TestJWKSEndpoint_ValidRFC7517Format(t *testing.T) {
 
 func TestJWKSEndpoint_ResponseTime(t *testing.T) {
 	publicKey := &rsa.PublicKey{
-		N: new(big.Int).SetInt64(12345),
+		N: validTestModulus(t),
 		E: 65537,
 	}
 
@@ -403,7 +405,7 @@ func TestJWKSEndpoint_NonExistentKey_NoDatabaseModifications(t *testing.T) {
 
 func TestJWKSEndpoint_RevokedKey_Returns404(t *testing.T) {
 	publicKey := &rsa.PublicKey{
-		N: new(big.Int).SetInt64(12345),
+		N: validTestModulus(t),
 		E: 65537,
 	}
 
@@ -436,7 +438,7 @@ func TestJWKSEndpoint_RevokedKey_Returns404(t *testing.T) {
 
 func TestJWKSEndpoint_RevokedKey_IdenticalToNonExistent(t *testing.T) {
 	publicKey := &rsa.PublicKey{
-		N: new(big.Int).SetInt64(12345),
+		N: validTestModulus(t),
 		E: 65537,
 	}
 
@@ -490,7 +492,7 @@ func TestJWKSEndpoint_RevokedKey_IdenticalToNonExistent(t *testing.T) {
 
 func TestJWKSEndpoint_RevokedKey_NeverReturnsValidJWKS(t *testing.T) {
 	publicKey := &rsa.PublicKey{
-		N: new(big.Int).SetInt64(12345),
+		N: validTestModulus(t),
 		E: 65537,
 	}
 
@@ -691,7 +693,7 @@ func TestJWKSEndpoint_500ClassErrors_Logged(t *testing.T) {
 
 func TestJWKSEndpoint_InvalidKidFormat_Returns404(t *testing.T) {
 	publicKey := &rsa.PublicKey{
-		N: new(big.Int).SetInt64(12345),
+		N: validTestModulus(t),
 		E: 65537,
 	}
 
@@ -722,7 +724,7 @@ func TestJWKSEndpoint_InvalidKidFormat_Returns404(t *testing.T) {
 
 func TestJWKSEndpoint_EmptyKid_Returns404(t *testing.T) {
 	publicKey := &rsa.PublicKey{
-		N: new(big.Int).SetInt64(12345),
+		N: validTestModulus(t),
 		E: 65537,
 	}
 
@@ -753,7 +755,7 @@ func TestJWKSEndpoint_EmptyKid_Returns404(t *testing.T) {
 
 func TestJWKSEndpoint_ConcurrentRequests_Safe(t *testing.T) {
 	publicKey := &rsa.PublicKey{
-		N: new(big.Int).SetInt64(12345),
+		N: validTestModulus(t),
 		E: 65537,
 	}
 
@@ -798,7 +800,7 @@ func TestJWKSEndpoint_ConcurrentRequests_Safe(t *testing.T) {
 
 func TestJWKSEndpoint_NoPrivateKeyExposed(t *testing.T) {
 	publicKey := &rsa.PublicKey{
-		N: new(big.Int).SetInt64(12345),
+		N: validTestModulus(t),
 		E: 65537,
 	}
 
@@ -856,13 +858,13 @@ func TestJWKSEndpoint_ContentTypeAlwaysJSON(t *testing.T) {
 		expectedCode int
 	}{
 		{"valid key", uuid.New().String(), func() (*KeyLookupResult, error) {
-			return &KeyLookupResult{PublicKey: &rsa.PublicKey{N: new(big.Int).SetInt64(12345), E: 65537}, Revoked: false}, nil
+			return &KeyLookupResult{PublicKey: &rsa.PublicKey{N: validTestModulus(t), E: 65537}, Revoked: false}, nil
 		}, http.StatusOK},
 		{"not found", uuid.New().String(), func() (*KeyLookupResult, error) {
 			return nil, errors.NewKeyNotFoundError("key not found")
 		}, http.StatusNotFound},
 		{"revoked", uuid.New().String(), func() (*KeyLookupResult, error) {
-			return &KeyLookupResult{PublicKey: &rsa.PublicKey{N: new(big.Int).SetInt64(12345), E: 65537}, Revoked: true}, nil
+			return &KeyLookupResult{PublicKey: &rsa.PublicKey{N: validTestModulus(t), E: 65537}, Revoked: true}, nil
 		}, http.StatusNotFound},
 	}
 
@@ -897,7 +899,7 @@ func TestJWKSEndpoint_ContentTypeAlwaysJSON(t *testing.T) {
 
 func TestJWKSEndpoint_OnlyOneKeyInResponse(t *testing.T) {
 	publicKey := &rsa.PublicKey{
-		N: new(big.Int).SetInt64(12345),
+		N: validTestModulus(t),
 		E: 65537,
 	}
 
@@ -954,7 +956,7 @@ func TestJWKSEndpoint_ConfigValidation_DBNil_ReturnsError(t *testing.T) {
 
 func TestJWKSEndpoint_DefaultTimeout_5SecondsApplied(t *testing.T) {
 	publicKey := &rsa.PublicKey{
-		N: new(big.Int).SetInt64(12345),
+		N: validTestModulus(t),
 		E: 65537,
 	}
 
@@ -1067,5 +1069,152 @@ func TestJWKSEndpoint_TimeoutWithCustomValue_UsesCustomTimeout(t *testing.T) {
 
 	if !timeoutTriggered {
 		t.Errorf("Expected timeout to trigger with 100ms timeout but 200ms delay")
+	}
+}
+
+func TestJWKSEndpoint_InvalidKid_NeverReachesDatabase(t *testing.T) {
+	var calls int32
+	mockDB := &MockDatabaseDriver{
+		GetKeyFunc: func(ctx context.Context, kid string) (*KeyLookupResult, error) {
+			atomic.AddInt32(&calls, 1)
+			return nil, errors.NewKeyNotFoundError("nf")
+		},
+	}
+	handler, err := CreateJWKSRouter(JWKSRouterConfig{DB: mockDB, Timeout: 5 * time.Second})
+	if err != nil {
+		t.Fatalf("Failed to create handler: %v", err)
+	}
+
+	for _, kid := range []string{
+		"invalid-uuid",
+		"%27%20OR%201%3D1--",
+		"00000000-0000-0000-0000-000000000000",
+		strings.Repeat("a", 4000),
+	} {
+		req, _ := http.NewRequest("GET", "/"+kid+"/.well-known/jwks.json", nil)
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		if rr.Code != http.StatusNotFound {
+			t.Errorf("kid %.40q: expected 404, got %d", kid, rr.Code)
+		}
+	}
+	if n := atomic.LoadInt32(&calls); n != 0 {
+		t.Errorf("Expected database to be untouched for invalid kids, got %d calls", n)
+	}
+}
+
+func TestJWKSEndpoint_NonCanonicalKid_PassedCanonicalToDatabase(t *testing.T) {
+	kid := uuid.New()
+	canonical := kid.String()
+	variants := []string{
+		strings.ToUpper(canonical),
+		strings.ReplaceAll(canonical, "-", ""),
+		"urn:uuid:" + canonical,
+	}
+
+	publicKey := &rsa.PublicKey{N: validTestModulus(t), E: 65537}
+	for _, v := range variants {
+		var got string
+		mockDB := &MockDatabaseDriver{
+			GetKeyFunc: func(ctx context.Context, k string) (*KeyLookupResult, error) {
+				got = k
+				return &KeyLookupResult{PublicKey: publicKey}, nil
+			},
+		}
+		handler, err := CreateJWKSRouter(JWKSRouterConfig{DB: mockDB, Timeout: 5 * time.Second})
+		if err != nil {
+			t.Fatalf("Failed to create handler: %v", err)
+		}
+		req, _ := http.NewRequest("GET", "/"+v+"/.well-known/jwks.json", nil)
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		if got != canonical {
+			t.Errorf("variant %q: database received %q, want canonical %q", v, got, canonical)
+		}
+	}
+}
+
+func TestJWKSEndpoint_ErrorResponses_NotCacheable(t *testing.T) {
+	publicKey := &rsa.PublicKey{N: validTestModulus(t), E: 65537}
+	kid := uuid.New()
+
+	tests := []struct {
+		name   string
+		path   string
+		result *KeyLookupResult
+		err    error
+		status int
+	}{
+		{"not found", "/" + kid.String() + "/.well-known/jwks.json", nil, errors.NewKeyNotFoundError("nf"), http.StatusNotFound},
+		{"revoked", "/" + kid.String() + "/.well-known/jwks.json", &KeyLookupResult{PublicKey: publicKey, Revoked: true}, nil, http.StatusNotFound},
+		{"invalid kid", "/not-a-uuid/.well-known/jwks.json", nil, nil, http.StatusNotFound},
+		{"db unavailable", "/" + kid.String() + "/.well-known/jwks.json", nil, errors.NewDatabaseUnavailableError("down"), http.StatusServiceUnavailable},
+		{"db error", "/" + kid.String() + "/.well-known/jwks.json", nil, fmt.Errorf("boom"), http.StatusInternalServerError},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockDB := &MockDatabaseDriver{
+				GetKeyFunc: func(ctx context.Context, _ string) (*KeyLookupResult, error) {
+					return tt.result, tt.err
+				},
+			}
+			handler, err := CreateJWKSRouter(JWKSRouterConfig{DB: mockDB, MaxAgeSeconds: 300, Timeout: 5 * time.Second})
+			if err != nil {
+				t.Fatalf("Failed to create handler: %v", err)
+			}
+
+			req, _ := http.NewRequest("GET", tt.path, nil)
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+
+			if rr.Code != tt.status {
+				t.Fatalf("Expected status %d, got %d", tt.status, rr.Code)
+			}
+			if got := rr.Header().Get("Cache-Control"); got != "no-store" {
+				t.Errorf("Expected Cache-Control no-store on error response, got %q", got)
+			}
+		})
+	}
+}
+
+// A client that disconnects (context.Canceled) is not a database failure: it
+// must not be logged as one or answered with a 500.
+func TestJWKSEndpoint_ClientCanceled_NotLoggedAsDatabaseError(t *testing.T) {
+	kid := uuid.New()
+	for name, dbErr := range map[string]error{
+		"canceled":         context.Canceled,
+		"wrapped canceled": fmt.Errorf("query: %w", context.Canceled),
+	} {
+		t.Run(name, func(t *testing.T) {
+			mockDB := &MockDatabaseDriver{
+				GetKeyFunc: func(ctx context.Context, _ string) (*KeyLookupResult, error) {
+					return nil, dbErr
+				},
+			}
+			handler, err := CreateJWKSRouter(JWKSRouterConfig{DB: mockDB, Timeout: 5 * time.Second})
+			if err != nil {
+				t.Fatalf("Failed to create handler: %v", err)
+			}
+
+			var buf bytes.Buffer
+			prev := log.Writer()
+			log.SetOutput(&buf)
+			defer log.SetOutput(prev)
+
+			req, _ := http.NewRequest("GET", "/"+kid.String()+"/.well-known/jwks.json", nil)
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+
+			if rr.Code != http.StatusServiceUnavailable {
+				t.Errorf("Expected 503 (not a 500) for a canceled request, got %d", rr.Code)
+			}
+			if got := rr.Header().Get("Cache-Control"); got != "no-store" {
+				t.Errorf("Expected no-store, got %q", got)
+			}
+			if buf.Len() != 0 {
+				t.Errorf("Canceled request must not be logged, got %q", buf.String())
+			}
+		})
 	}
 }

@@ -2,40 +2,26 @@
 
 ## Installation
 
-To use japikey-go in your project, simply add it as a Go module:
-
 ```bash
 go mod init your-project
-go get github.com/susu-dot-dev/japikey-go
+go get github.com/susu-dot-dev/japikey
 ```
 
 ## Local Development
 
-For local development, we provide a Makefile with common commands:
+This repo is a Go workspace of four modules; use the Makefile rather than bare `go` commands.
 
 ```bash
-# Run tests
-make test
-
-# Format code
-make fmt
-
-# Run linting
-make lint
-
-# Run all checks (format, vet, lint, test)
-make check
-
-# Build the project
-make build
-
-# Run all checks and build (for CI)
-make ci
+make test    # all tests
+make check   # fmt, vet, lint, test
+make ci      # deps, tidy, check, build
 ```
+
+See [CONTRIBUTING.md](../CONTRIBUTING.md) for the full list.
 
 ## Basic Usage
 
-Here's a minimal example to get started with japikey-go:
+Mint a key:
 
 ```go
 package main
@@ -43,45 +29,38 @@ package main
 import (
     "fmt"
     "time"
-    "github.com/susu-dot-dev/japikey-go"
+    "github.com/susu-dot-dev/japikey"
 )
 
 func main() {
-    // Create a config with required fields
-    config := japikey.Config{
-        Subject:   "user-123",
+    result, err := japikey.NewJAPIKey(japikey.Config{
+        Subject: "user-123",
+        // Base issuer URL; iss becomes "<Issuer>/<key id>". https, canonical,
+        // no query, fragment or user info (see AllowInsecureHTTP).
         Issuer:    "https://myapp.com",
         Audience:  "myapp-users",
-        ExpiresAt: time.Now().Add(24 * time.Hour), // 24 hours from now
-    }
-
-    // Generate the JAPIKey
-    result, err := japikey.NewJAPIKey(config)
+        ExpiresAt: time.Now().Add(24 * time.Hour),
+    })
     if err != nil {
-        // Handle error appropriately
-        if validationErr, ok := err.(*japikey.ValidationError); ok {
-            fmt.Printf("Validation error: %s\n", validationErr.Error())
-        } else if internalErr, ok := err.(*japikey.InternalError); ok {
-            fmt.Printf("Internal error: %s\n", internalErr.Error())
-        }
+        fmt.Println(err) // *japikey.ValidationError or *japikey.InternalError
         return
     }
 
-    // Use the generated JWT and public key
-    fmt.Printf("Generated JWT: %s\n", result.JWT)
+    // result.JWT is the secret: hand it to the user, don't log or store it.
+    // Store result.PublicKey and result.KeyID.
     fmt.Printf("Key ID: %s\n", result.KeyID)
-    fmt.Printf("Public Key: %+v\n", result.PublicKey)
 }
 ```
 
+To verify keys, see [japikey/README.md](../japikey/README.md); to serve the JWKS over HTTP, see [internal/middleware/README.md](../internal/middleware/README.md).
+
 ## Requirements
 
-- Go 1.21 or later
-- Linux or Mac operating system
+- Go 1.27 or later
 
 ## JWKS (JSON Web Key Set) Support
 
-The library also provides support for converting JAPIKeys to JWKS format and working with JWKS:
+A JWKS holds exactly one RSA key (2048 to 4096 bits).
 
 ### Converting JAPIKey to JWKS
 
@@ -109,15 +88,7 @@ fmt.Println(string(jwksJSON))
 ### Creating JWKS from RSA Public Key
 
 ```go
-import (
-    "crypto/rsa"
-    "uuid"
-)
-
-// Create JWKS directly from RSA public key and UUID
-publicKey := /* your RSA public key */
-keyID := uuid.MustParse("123e4567-e89b-12d3-a456-426614174000")
-
+// publicKey is an *rsa.PublicKey, keyID a uuid.UUID
 jwks, err := japikey.NewJWKS(publicKey, keyID)
 if err != nil {
     log.Fatal(err)
@@ -127,30 +98,22 @@ if err != nil {
 ### Extracting Information from JWKS
 
 ```go
-// Get the key ID from JWKS
 keyID := jwks.GetKeyID()
 
-// Get the public key for a specific key ID
+// *KeyNotFoundError if keyID doesn't match
 publicKey, err := jwks.GetPublicKey(keyID)
-if err != nil {
-    log.Fatal(err)
-}
 ```
 
 ### Deserializing JWKS from JSON
 
 ```go
-jsonStr := `{"keys":[{"kty":"RSA","kid":"...","n":"...","e":"..."}]}`
+// Exactly one key with exactly the fields kty, kid, n, e
 var jwks japikey.JWKS
-err := json.Unmarshal([]byte(jsonStr), &jwks)
-if err != nil {
-    log.Fatal(err)
-}
+err := json.Unmarshal([]byte(jsonStr), &jwks) // *ValidationError on bad input
 ```
 
 ## Next Steps
 
-Check out the examples in the `example/` directory:
-- `example/basic/main.go` - Basic JAPIKey usage
-- `example/jwks/main.go` - Complete JWKS examples
-- `example/jwks.json` - Sample JWKS file for testing
+Examples (run with `make examples`):
+- `example/basic/main.go`: minting keys
+- `example/jwks/main.go`: JWKS conversion
