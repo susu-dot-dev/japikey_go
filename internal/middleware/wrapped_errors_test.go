@@ -10,7 +10,7 @@ import (
 	"time"
 	"uuid"
 
-	"github.com/susu-dot-dev/japikey/errors"
+	"github.com/susu-dot-dev/japikey_go/errors"
 )
 
 // Drivers commonly wrap their errors; the router must still classify them.

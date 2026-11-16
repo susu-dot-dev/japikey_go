@@ -13,8 +13,8 @@ import (
 	"uuid"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/susu-dot-dev/japikey/errors"
-	"github.com/susu-dot-dev/japikey/internal/jwks"
+	"github.com/susu-dot-dev/japikey_go/errors"
+	"github.com/susu-dot-dev/japikey_go/internal/jwks"
 )
 
 type Config struct {

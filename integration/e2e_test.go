@@ -28,8 +28,8 @@ import (
 	"github.com/lestrrat-go/jwx/v4/jwk"
 	"github.com/lestrrat-go/jwx/v4/jws"
 	"github.com/lestrrat-go/jwx/v4/jwt"
-	"github.com/susu-dot-dev/japikey"
-	japikeyerrors "github.com/susu-dot-dev/japikey/errors"
+	"github.com/susu-dot-dev/japikey_go"
+	japikeyerrors "github.com/susu-dot-dev/japikey_go/errors"
 )
 
 // memoryDB is a minimal DatabaseDriver holding only public keys, as a real

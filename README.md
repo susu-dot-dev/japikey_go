@@ -7,7 +7,7 @@ New keys are version 2 (`ver: "japikey-v2"`, ES256). Keys minted by earlier rele
 ## Installation
 
 ```bash
-go get github.com/susu-dot-dev/japikey
+go get github.com/susu-dot-dev/japikey_go
 ```
 
 ## Usage
@@ -20,7 +20,7 @@ package main
 import (
     "fmt"
     "time"
-    "github.com/susu-dot-dev/japikey"
+    "github.com/susu-dot-dev/japikey_go"
 )
 
 func main() {
@@ -60,7 +60,7 @@ import (
     "log"
     "time"
     "uuid"
-    "github.com/susu-dot-dev/japikey"
+    "github.com/susu-dot-dev/japikey_go"
 )
 
 func main() {

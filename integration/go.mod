@@ -1,11 +1,11 @@
-module github.com/susu-dot-dev/japikey/integration
+module github.com/susu-dot-dev/japikey_go/integration
 
 go 1.27.4
 
 require (
 	github.com/jwx-go/jwkfetch/v4 v4.0.4
 	github.com/lestrrat-go/jwx/v4 v4.6.0
-	github.com/susu-dot-dev/japikey v0.0.0
+	github.com/susu-dot-dev/japikey_go v0.0.0
 )
 
 require (
@@ -18,4 +18,4 @@ require (
 	github.com/lestrrat-go/option/v3 v3.0.0-alpha1 // indirect
 )
 
-replace github.com/susu-dot-dev/japikey => ../
+replace github.com/susu-dot-dev/japikey_go => ../

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"uuid"
 
-	"github.com/susu-dot-dev/japikey/errors"
+	"github.com/susu-dot-dev/japikey_go/errors"
 )
 
 // Parse errors must use fixed messages: errors from encoding/json, encoding/base64

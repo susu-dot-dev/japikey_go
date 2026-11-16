@@ -19,7 +19,7 @@ import (
     "time"
     "uuid"
 
-    "github.com/susu-dot-dev/japikey"
+    "github.com/susu-dot-dev/japikey_go"
 )
 
 func authenticate(w http.ResponseWriter, tokenString string) {

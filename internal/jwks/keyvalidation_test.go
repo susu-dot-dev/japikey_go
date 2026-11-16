@@ -9,7 +9,7 @@ import (
 	"testing"
 	"uuid"
 
-	"github.com/susu-dot-dev/japikey/errors"
+	"github.com/susu-dot-dev/japikey_go/errors"
 )
 
 // modulusWithBits returns an odd modulus with exactly the requested bit length.

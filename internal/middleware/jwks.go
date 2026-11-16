@@ -13,8 +13,8 @@ import (
 	"time"
 	"uuid"
 
-	japikeyerrors "github.com/susu-dot-dev/japikey/errors"
-	internaljwks "github.com/susu-dot-dev/japikey/internal/jwks"
+	japikeyerrors "github.com/susu-dot-dev/japikey_go/errors"
+	internaljwks "github.com/susu-dot-dev/japikey_go/internal/jwks"
 )
 
 type KeyLookupResult struct {
