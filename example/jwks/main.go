@@ -7,7 +7,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/susu-dot-dev/japikey"
+	"github.com/susu-dot-dev/japikey_go"
 )
 
 func main() {

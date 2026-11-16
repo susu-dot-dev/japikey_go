@@ -15,7 +15,7 @@ import (
 	"time"
 	"uuid"
 
-	"github.com/susu-dot-dev/japikey/errors"
+	"github.com/susu-dot-dev/japikey_go/errors"
 )
 
 type MockDatabaseDriver struct {

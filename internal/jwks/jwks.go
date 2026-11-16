@@ -10,7 +10,7 @@ import (
 	"math/big"
 	"uuid"
 
-	"github.com/susu-dot-dev/japikey/errors"
+	"github.com/susu-dot-dev/japikey_go/errors"
 )
 
 const (

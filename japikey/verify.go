@@ -17,8 +17,8 @@ import (
 	"uuid"
 
 	"github.com/golang-jwt/jwt/v5"
-	japikeyerrors "github.com/susu-dot-dev/japikey/errors"
-	"github.com/susu-dot-dev/japikey/internal/jwks"
+	japikeyerrors "github.com/susu-dot-dev/japikey_go/errors"
+	"github.com/susu-dot-dev/japikey_go/internal/jwks"
 )
 
 // JWKCallback is a function that retrieves the JWK (JSON Web Key) given the key ID.

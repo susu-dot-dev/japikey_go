@@ -9,10 +9,10 @@ import (
 	"net/http"
 	"uuid"
 
-	"github.com/susu-dot-dev/japikey/errors"
-	"github.com/susu-dot-dev/japikey/internal/jwks"
-	"github.com/susu-dot-dev/japikey/internal/middleware"
-	"github.com/susu-dot-dev/japikey/japikey"
+	"github.com/susu-dot-dev/japikey_go/errors"
+	"github.com/susu-dot-dev/japikey_go/internal/jwks"
+	"github.com/susu-dot-dev/japikey_go/internal/middleware"
+	"github.com/susu-dot-dev/japikey_go/japikey"
 )
 
 type Config = japikey.Config

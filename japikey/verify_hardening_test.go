@@ -14,7 +14,7 @@ import (
 	"uuid"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/susu-dot-dev/japikey/errors"
+	"github.com/susu-dot-dev/japikey_go/errors"
 )
 
 const hardeningKeyID = "123e4567-e89b-12d3-a456-426614174000"

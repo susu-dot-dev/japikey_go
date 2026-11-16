@@ -64,7 +64,7 @@ This repo is a Go workspace (`go.work`) with four modules: the root, `example/`,
 ### Imports
 - Group imports in order: standard library, third-party, internal
 - Separate groups with blank lines
-- Use alias for package name conflicts (e.g., `japikeyerrors "github.com/susu-dot-dev/japikey/errors"`)
+- Use alias for package name conflicts (e.g., `japikeyerrors "github.com/susu-dot-dev/japikey_go/errors"`)
 
 ### Naming Conventions
 - Public functions/types: PascalCase (NewJAPIKey, Verify, Config, JAPIKey)

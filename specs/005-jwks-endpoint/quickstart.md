@@ -12,7 +12,7 @@ The JAPIKey JWKS endpoint middleware serves the OIDC `.well-known/jwks.json` end
 ## Installation
 
 ```bash
-go get github.com/susu-dot-dev/japikey
+go get github.com/susu-dot-dev/japikey_go
 ```
 
 ---
@@ -31,8 +31,8 @@ import (
     "crypto/rsa"
     "uuid"
     "errors"
-    "github.com/susu-dot-dev/japikey"
-    "github.com/susu-dot-dev/japikey/errors"
+    "github.com/susu-dot-dev/japikey_go"
+    "github.com/susu-dot-dev/japikey_go/errors"
 )
 
 type MyDatabase struct {
@@ -79,7 +79,7 @@ Create the JWKS handler with your database driver:
 package main
 
 import (
-    "github.com/susu-dot-dev/japikey"
+    "github.com/susu-dot-dev/japikey_go"
 )
 
 func main() {
@@ -123,7 +123,7 @@ import (
     "crypto/rsa"
     "uuid"
     "errors"
-    "github.com/susu-dot-dev/japikey"
+    "github.com/susu-dot-dev/japikey_go"
 )
 
 type MyDatabase struct {
@@ -170,7 +170,7 @@ Create the JWKS handler with your database driver:
 package main
 
 import (
-    "github.com/susu-dot-dev/japikey"
+    "github.com/susu-dot-dev/japikey_go"
 )
 
 func main() {
@@ -365,7 +365,7 @@ func parsePublicKey(jwkJSON string) (*rsa.PublicKey, error) {
 ```go
 import (
     "github.com/gin-gonic/gin"
-    "github.com/susu-dot-dev/japikey"
+    "github.com/susu-dot-dev/japikey_go"
 )
 
 func main() {
@@ -388,7 +388,7 @@ func main() {
 ```go
 import (
     "github.com/go-chi/chi/v5"
-    "github.com/susu-dot-dev/japikey"
+    "github.com/susu-dot-dev/japikey_go"
 )
 
 func main() {
@@ -417,7 +417,7 @@ import (
     "net/http/httptest"
     "testing"
 
-    "github.com/susu-dot-dev/japikey"
+    "github.com/susu-dot-dev/japikey_go"
     "github.com/stretchr/testify/assert"
 )
 
@@ -549,7 +549,7 @@ func (db *MyDatabase) GetKey(ctx context.Context, kid string) (*rsa.PublicKey, b
 ## Additional Resources
 
 - [RFC 7517: JSON Web Key (JWK)](https://datatracker.ietf.org/doc/html/rfc7517)
-- [JAPIKey Documentation](https://github.com/susu-dot-dev/japikey)
+- [JAPIKey Documentation](https://github.com/susu-dot-dev/japikey_go)
 - [Go httptest package](https://pkg.go.dev/net/http/httptest)
 
 ---
@@ -557,5 +557,5 @@ func (db *MyDatabase) GetKey(ctx context.Context, kid string) (*rsa.PublicKey, b
 ## Support
 
 For issues or questions:
-- Open an issue on GitHub: [github.com/susu-dot-dev/japikey/issues](https://github.com/susu-dot-dev/japikey/issues)
+- Open an issue on GitHub: [github.com/susu-dot-dev/japikey_go/issues](https://github.com/susu-dot-dev/japikey_go/issues)
 - Check the main documentation: [README.md](../README.md)

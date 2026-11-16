@@ -16,8 +16,8 @@ import (
 	"errors"
 	"uuid"
 
-	"github.com/susu-dot-dev/japikey"
-	japikeyerrors "github.com/susu-dot-dev/japikey/errors"
+	"github.com/susu-dot-dev/japikey_go"
+	japikeyerrors "github.com/susu-dot-dev/japikey_go/errors"
 )
 
 type MyDatabase struct {
@@ -64,7 +64,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/susu-dot-dev/japikey"
+	"github.com/susu-dot-dev/japikey_go"
 )
 
 func main() {
@@ -198,7 +198,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/susu-dot-dev/japikey"
+	"github.com/susu-dot-dev/japikey_go"
 )
 
 func TestJWKSEndpoint(t *testing.T) {

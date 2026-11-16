@@ -18,7 +18,7 @@ Thank you for your interest in contributing to japikey! This document outlines t
    ```
 3. Add the upstream repository as a remote:
    ```bash
-   git remote add upstream https://github.com/susu-dot-dev/japikey.git
+   git remote add upstream https://github.com/susu-dot-dev/japikey_go.git
    ```
 
 ## Development Workflow

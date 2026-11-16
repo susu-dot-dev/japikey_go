@@ -1,4 +1,4 @@
-module github.com/susu-dot-dev/japikey
+module github.com/susu-dot-dev/japikey_go
 
 go 1.27.4
 

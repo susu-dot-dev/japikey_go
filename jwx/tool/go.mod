@@ -1,4 +1,4 @@
-module github.com/susu-dot-dev/japikey/jwx/tool
+module github.com/susu-dot-dev/japikey_go/jwx/tool
 
 go 1.27.4
 
