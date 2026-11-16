@@ -141,7 +141,8 @@ func NewJAPIKey(config Config) (*JAPIKey, error) {
 		return nil, errors.NewInternalError("failed to generate EC key pair")
 	}
 
-	keyID := uuid.New()
+	// Key IDs are UUIDv7 (time-ordered), per the spec.
+	keyID := uuid.NewV7()
 
 	claims := jwt.MapClaims{}
 	for k, v := range config.Claims {

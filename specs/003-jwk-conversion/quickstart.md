@@ -15,7 +15,7 @@ This library provides functionality to convert JAPIKeys to JWKS (JSON Web Key Se
 ```go
 import (
     "path/to/japikey"
-    "github.com/google/uuid"
+    "uuid"
 )
 
 // Create a JWKS from an RSA public key and key ID
@@ -42,7 +42,7 @@ fmt.Println(string(jsonBytes))
 ```go
 import (
     "path/to/japikey"
-    "github.com/google/uuid"
+    "uuid"
 )
 
 // Assuming you have a JAPIKey instance with UUID type KeyID
@@ -59,7 +59,7 @@ if err != nil {
 ```go
 import (
     "path/to/japikey"
-    "github.com/google/uuid"
+    "uuid"
 )
 
 // Extract public key for a specific key ID
@@ -77,7 +77,7 @@ if err != nil {
 ```go
 import (
     "path/to/japikey"
-    "github.com/google/uuid"
+    "uuid"
 )
 
 // Get the key ID present in the JWKS
@@ -95,7 +95,7 @@ if err != nil {
 import (
     "encoding/json"
     "path/to/japikey"
-    "github.com/google/uuid"
+    "uuid"
 )
 
 jsonStr := `{"keys":[{"kty":"RSA","kid":"123e4567-e89b-12d3-a456-426614174000","n":"...","e":"..."}]}`
