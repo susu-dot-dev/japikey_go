@@ -51,6 +51,22 @@ func TestNewJAPIKey_WithValidInputs_ReturnsValidJWT(t *testing.T) {
 	}
 }
 
+func TestNewJAPIKey_KeyIDIsUUIDv7(t *testing.T) {
+	result, err := NewJAPIKey(Config{
+		Subject:   "test-user",
+		Issuer:    "https://example.com",
+		Audience:  "test-audience",
+		ExpiresAt: time.Now().Add(1 * time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("Expected no error, but got: %v", err)
+	}
+
+	if version := result.KeyID[6] >> 4; version != 7 {
+		t.Errorf("Expected KeyID to be UUID version 7, got version %d (%s)", version, result.KeyID)
+	}
+}
+
 func TestNewJAPIKey_WithExpiredTime_ReturnsValidationError(t *testing.T) {
 	// Arrange
 	config := Config{

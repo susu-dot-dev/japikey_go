@@ -14,7 +14,7 @@ The implementation follows an architecture where all JWKS-related code (except t
 ## Technical Context
 
 **Language/Version**: Go 1.21 or later (as specified in functional requirement FR-008)
-**Primary Dependencies**: Standard Go modules (crypto/rsa, crypto/x509, encoding/base64, math/big), github.com/golang-jwt/jwt/v5 for JWT handling, golang.org/x/crypto for cryptographic operations, github.com/google/uuid for UUID handling, github.com/lestrrat-go/jwx/jwk for jwx CLI tool
+**Primary Dependencies**: Standard Go modules (crypto/rsa, crypto/x509, encoding/base64, math/big), github.com/golang-jwt/jwt/v5 for JWT handling, golang.org/x/crypto for cryptographic operations, the standard library uuid package for UUID handling, github.com/lestrrat-go/jwx/jwk for jwx CLI tool
 **Storage**: N/A (in-memory operations, no persistent storage required)
 **Testing**: Go testing package (go test), with additional verification using lestrrat-go/jwx/jwk in jwx CLI tool
 **Target Platform**: Linux server, cross-platform compatibility
