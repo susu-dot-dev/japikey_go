@@ -3,7 +3,7 @@
 ## Active Technologies
 
 - Go 1.27.4
-- Go standard library (crypto/rand, crypto/rsa, encoding/base64, encoding/json)
+- Go standard library (crypto/rand, crypto/ecdsa, crypto/rsa for legacy v1 keys, encoding/base64, encoding/json)
 - github.com/golang-jwt/jwt/v5 for JWT creation and verification
 - Go standard library uuid package (new in Go 1.27) for UUID handling
 
@@ -69,11 +69,11 @@ This repo is a Go workspace (`go.work`) with four modules: the root, `example/`,
 ### Naming Conventions
 - Public functions/types: PascalCase (NewJAPIKey, Verify, Config, JAPIKey)
 - Private functions/types: camelCase (validateConfig, extractKeyIDFromHeader)
-- Constants: PascalCase (AlgorithmRS256, MaxTokenSize, VersionClaim)
+- Constants: PascalCase (AlgorithmES256, MaxTokenSize, VersionClaim)
 - Interface names: usually -er suffix (JWKCallback)
 
 ### Types
-- Use named types for clarity (uuid.UUID, *rsa.PublicKey)
+- Use named types for clarity (uuid.UUID, crypto.PublicKey)
 - Use pointer types for large structs and when nil is meaningful
 - Define custom error types via struct composition (errors package)
 

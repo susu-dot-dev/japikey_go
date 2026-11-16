@@ -3,6 +3,7 @@ package japikey
 import (
 	"bytes"
 	"context"
+	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
 	"database/sql"
@@ -88,8 +89,8 @@ func isUnauthorizedBecause[T error](err error) bool {
 }
 
 // mockKeyFunc creates a mock key function that returns the provided public key
-func mockKeyFunc(pubKey *rsa.PublicKey) JWKCallback {
-	return func(_ context.Context, keyID uuid.UUID) (*rsa.PublicKey, error) {
+func mockKeyFunc(pubKey crypto.PublicKey) JWKCallback {
+	return func(_ context.Context, keyID uuid.UUID) (crypto.PublicKey, error) {
 		return pubKey, nil
 	}
 }
@@ -290,7 +291,7 @@ func TestVerifyFunctionExists(t *testing.T) {
 	}
 
 	// Create a mock callback that returns nil
-	mockCallback := func(_ context.Context, keyID uuid.UUID) (*rsa.PublicKey, error) {
+	mockCallback := func(_ context.Context, keyID uuid.UUID) (crypto.PublicKey, error) {
 		return nil, nil
 	}
 
@@ -503,7 +504,7 @@ func TestVerifyPreservesCustomClaims(t *testing.T) {
 		Timeout:       5 * time.Second,
 	}
 
-	keyFunc := func(_ context.Context, kid uuid.UUID) (*rsa.PublicKey, error) {
+	keyFunc := func(_ context.Context, kid uuid.UUID) (crypto.PublicKey, error) {
 		if kid != keyID {
 			return nil, errors.NewKeyNotFoundError("key not found")
 		}
@@ -1301,7 +1302,7 @@ func TestVerifyCallbackReturnsNilKey(t *testing.T) {
 	config := VerifyConfig{BaseIssuerURL: "https://example.com/", Timeout: 5 * time.Second}
 
 	// (nil, nil) previously caused a nil pointer dereference panic.
-	result, err := Verify(context.Background(), tokenString, config, func(context.Context, uuid.UUID) (*rsa.PublicKey, error) {
+	result, err := Verify(context.Background(), tokenString, config, func(context.Context, uuid.UUID) (crypto.PublicKey, error) {
 		return nil, nil
 	})
 	if result != nil {
@@ -1312,7 +1313,7 @@ func TestVerifyCallbackReturnsNilKey(t *testing.T) {
 	}
 
 	// A key with a nil modulus is equally unusable.
-	_, err = Verify(context.Background(), tokenString, config, func(context.Context, uuid.UUID) (*rsa.PublicKey, error) {
+	_, err = Verify(context.Background(), tokenString, config, func(context.Context, uuid.UUID) (crypto.PublicKey, error) {
 		return &rsa.PublicKey{E: 65537}, nil
 	})
 	if !isUnauthorizedBecause[*errors.KeyNotFoundError](err) {
@@ -1352,7 +1353,7 @@ func TestVerifyCallbackErrorMapping(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := Verify(context.Background(), tokenString, config, func(context.Context, uuid.UUID) (*rsa.PublicKey, error) {
+			_, err := Verify(context.Background(), tokenString, config, func(context.Context, uuid.UUID) (crypto.PublicKey, error) {
 				return nil, tt.cbErr
 			})
 			if err == nil || !tt.checkFn(err) {
@@ -1375,7 +1376,7 @@ func TestVerifyTimeoutEnforced(t *testing.T) {
 	var deadlineSeen bool
 	start := time.Now()
 	// A well-behaved callback blocks on its context, as a database driver would.
-	_, err = Verify(context.Background(), tokenString, config, func(ctx context.Context, _ uuid.UUID) (*rsa.PublicKey, error) {
+	_, err = Verify(context.Background(), tokenString, config, func(ctx context.Context, _ uuid.UUID) (crypto.PublicKey, error) {
 		_, deadlineSeen = ctx.Deadline()
 		<-ctx.Done()
 		return nil, ctx.Err()
@@ -1406,7 +1407,7 @@ func TestVerifyContextCancellation(t *testing.T) {
 		cancel()
 	}()
 
-	_, err = Verify(ctx, tokenString, config, func(ctx context.Context, _ uuid.UUID) (*rsa.PublicKey, error) {
+	_, err = Verify(ctx, tokenString, config, func(ctx context.Context, _ uuid.UUID) (crypto.PublicKey, error) {
 		<-ctx.Done()
 		return nil, ctx.Err()
 	})
@@ -1424,7 +1425,7 @@ func TestVerifyLateCallbackResultIsTimeout(t *testing.T) {
 	}
 	config := VerifyConfig{BaseIssuerURL: "https://example.com/", Timeout: 20 * time.Millisecond}
 
-	_, err = Verify(context.Background(), tokenString, config, func(ctx context.Context, _ uuid.UUID) (*rsa.PublicKey, error) {
+	_, err = Verify(context.Background(), tokenString, config, func(ctx context.Context, _ uuid.UUID) (crypto.PublicKey, error) {
 		time.Sleep(60 * time.Millisecond) // ignores ctx, returns a good key too late
 		return pubKey, nil
 	})
@@ -1447,7 +1448,7 @@ func TestVerifyLeavesNoGoroutines(t *testing.T) {
 		forged := parts[0] + "." + parts[1] + "." + parts[2][:len(parts[2])-4] + "AAAA"
 
 		_, _ = Verify(context.Background(), forged, VerifyConfig{BaseIssuerURL: "https://example.com/"},
-			func(ctx context.Context, _ uuid.UUID) (*rsa.PublicKey, error) {
+			func(ctx context.Context, _ uuid.UUID) (crypto.PublicKey, error) {
 				return nil, errors.NewKeyNotFoundError("nf")
 			})
 	}
@@ -1464,7 +1465,7 @@ func TestVerifyCallbackPanicRecovered(t *testing.T) {
 	}
 	config := VerifyConfig{BaseIssuerURL: "https://example.com/", Timeout: 5 * time.Second}
 
-	_, err = Verify(context.Background(), tokenString, config, func(context.Context, uuid.UUID) (*rsa.PublicKey, error) {
+	_, err = Verify(context.Background(), tokenString, config, func(context.Context, uuid.UUID) (crypto.PublicKey, error) {
 		panic("boom")
 	})
 	if _, ok := err.(*errors.InternalError); !ok {
@@ -1479,7 +1480,7 @@ func TestVerifyDefaultTimeoutApplied(t *testing.T) {
 	}
 	// Timeout unset: a deadline must still be present on the callback context.
 	var sawDeadline bool
-	_, _ = Verify(context.Background(), tokenString, VerifyConfig{BaseIssuerURL: "https://example.com/"}, func(ctx context.Context, _ uuid.UUID) (*rsa.PublicKey, error) {
+	_, _ = Verify(context.Background(), tokenString, VerifyConfig{BaseIssuerURL: "https://example.com/"}, func(ctx context.Context, _ uuid.UUID) (crypto.PublicKey, error) {
 		_, sawDeadline = ctx.Deadline()
 		return nil, errors.NewKeyNotFoundError("nf")
 	})
@@ -1520,7 +1521,7 @@ func TestVerifyRejectsNilUUIDKeyIDWithoutLookup(t *testing.T) {
 	tokenString, pubKey := signTestToken(t, baseTestClaims(nilID), nilID)
 
 	called := false
-	keyFunc := func(ctx context.Context, keyID uuid.UUID) (*rsa.PublicKey, error) {
+	keyFunc := func(ctx context.Context, keyID uuid.UUID) (crypto.PublicKey, error) {
 		called = true
 		return pubKey, nil
 	}
@@ -1559,7 +1560,7 @@ func TestVerifyIssuedAtValidation(t *testing.T) {
 			tt.mutate(claims)
 			tokenString, pubKey := signTestToken(t, claims, keyID)
 
-			_, err := Verify(context.Background(), tokenString, VerifyConfig{BaseIssuerURL: "https://example.com/"}, func(ctx context.Context, _ uuid.UUID) (*rsa.PublicKey, error) {
+			_, err := Verify(context.Background(), tokenString, VerifyConfig{BaseIssuerURL: "https://example.com/"}, func(ctx context.Context, _ uuid.UUID) (crypto.PublicKey, error) {
 				return pubKey, nil
 			})
 			if tt.wantErr {
@@ -1576,7 +1577,7 @@ func TestVerifyIssuedAtValidation(t *testing.T) {
 func TestVerifyAudience(t *testing.T) {
 	keyID := "123e4567-e89b-12d3-a456-426614174000"
 	tokenString, pubKey := signTestToken(t, baseTestClaims(keyID), keyID)
-	keyFunc := func(ctx context.Context, _ uuid.UUID) (*rsa.PublicKey, error) { return pubKey, nil }
+	keyFunc := func(ctx context.Context, _ uuid.UUID) (crypto.PublicKey, error) { return pubKey, nil }
 
 	tests := []struct {
 		name     string
@@ -1613,7 +1614,7 @@ func TestVerifyErrorsDoNotEchoTokenContents(t *testing.T) {
 	for name, claims := range map[string]jwt.MapClaims{"version": badVersion, "issuer": badIssuer} {
 		t.Run(name, func(t *testing.T) {
 			tokenString, pubKey := signTestToken(t, claims, keyID)
-			_, err := Verify(context.Background(), tokenString, VerifyConfig{BaseIssuerURL: "https://example.com/"}, func(ctx context.Context, _ uuid.UUID) (*rsa.PublicKey, error) {
+			_, err := Verify(context.Background(), tokenString, VerifyConfig{BaseIssuerURL: "https://example.com/"}, func(ctx context.Context, _ uuid.UUID) (crypto.PublicKey, error) {
 				return pubKey, nil
 			})
 			if err == nil {
@@ -1781,7 +1782,7 @@ func TestVerifyCallbackStdlibNotFoundIsUnauthorized(t *testing.T) {
 		"fs.ErrNotExist":        fs.ErrNotExist,
 	} {
 		t.Run(name, func(t *testing.T) {
-			_, err := Verify(context.Background(), tokenString, VerifyConfig{BaseIssuerURL: "https://example.com/"}, func(context.Context, uuid.UUID) (*rsa.PublicKey, error) {
+			_, err := Verify(context.Background(), tokenString, VerifyConfig{BaseIssuerURL: "https://example.com/"}, func(context.Context, uuid.UUID) (crypto.PublicKey, error) {
 				return nil, cbErr
 			})
 			if !isUnauthorizedBecause[*errors.KeyNotFoundError](err) {
@@ -1822,7 +1823,7 @@ func TestVerifyCallbackPanicIsLogged(t *testing.T) {
 	log.SetOutput(&buf)
 	defer log.SetOutput(prev)
 
-	_, err = Verify(context.Background(), tokenString, VerifyConfig{BaseIssuerURL: "https://example.com/"}, func(context.Context, uuid.UUID) (*rsa.PublicKey, error) {
+	_, err = Verify(context.Background(), tokenString, VerifyConfig{BaseIssuerURL: "https://example.com/"}, func(context.Context, uuid.UUID) (crypto.PublicKey, error) {
 		panic("kaboom-secret")
 	})
 	if _, ok := err.(*errors.InternalError); !ok {

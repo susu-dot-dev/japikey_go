@@ -371,12 +371,13 @@ func TestJWKS_SerializationDeserializationRoundTrip(t *testing.T) {
 		t.Fatalf("Failed to extract public key from round-trip JWKS: %v", err)
 	}
 
-	if origPubKey.N.Cmp(rtPubKey.N) != 0 {
+	origRSA, rtRSA := origPubKey.(*rsa.PublicKey), rtPubKey.(*rsa.PublicKey)
+	if origRSA.N.Cmp(rtRSA.N) != 0 {
 		t.Error("Public key modulus does not match after round-trip")
 	}
 
-	if origPubKey.E != rtPubKey.E {
-		t.Errorf("Public key exponent does not match after round-trip: %d != %d", origPubKey.E, rtPubKey.E)
+	if origRSA.E != rtRSA.E {
+		t.Errorf("Public key exponent does not match after round-trip: %d != %d", origRSA.E, rtRSA.E)
 	}
 }
 
@@ -396,10 +397,11 @@ func TestJWKS_PublicKeyRoundTrip(t *testing.T) {
 	}
 
 	// Act: Extract the public key back from the JWKS
-	extractedPublicKey, err := jwks.GetPublicKey(keyID)
+	extracted, err := jwks.GetPublicKey(keyID)
 	if err != nil {
 		t.Fatalf("Failed to extract public key: %v", err)
 	}
+	extractedPublicKey := extracted.(*rsa.PublicKey)
 
 	// Assert: Compare the original and extracted public keys
 	if originalPublicKey.N.Cmp(extractedPublicKey.N) != 0 {
@@ -536,12 +538,8 @@ func TestJWKS_GetPublicKey_WithValidKeyID(t *testing.T) {
 		t.Fatal("Expected public key to not be nil")
 	}
 
-	if retrievedPublicKey.N.Cmp(publicKey.N) != 0 {
-		t.Errorf("Expected modulus to match original, but got different values")
-	}
-
-	if retrievedPublicKey.E != publicKey.E {
-		t.Errorf("Expected exponent to match original, but got %d, expected %d", retrievedPublicKey.E, publicKey.E)
+	if !publicKey.Equal(retrievedPublicKey) {
+		t.Errorf("Expected retrieved public key to match the original")
 	}
 }
 

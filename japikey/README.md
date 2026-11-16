@@ -1,6 +1,6 @@
 # JAPIKey Verification
 
-Verification of JAPIKey tokens (RS256 JWTs) with a caller-supplied key lookup. Everything here is also exported from the root `japikey` package.
+Verification of JAPIKey tokens (ES256 JWTs for version 2 keys, RS256 for version 1) with a caller-supplied key lookup. Everything here is also exported from the root `japikey` package.
 
 ## Usage
 
@@ -11,7 +11,7 @@ package main
 
 import (
     "context"
-    "crypto/rsa"
+    "crypto"
     "errors"
     "fmt"
     "log"
@@ -32,7 +32,7 @@ func authenticate(w http.ResponseWriter, tokenString string) {
     // ctx carries the Timeout deadline; honor it for any I/O. Return a
     // *japikey.KeyNotFoundError if the key does not exist or is revoked
     // (sql.ErrNoRows and fs.ErrNotExist are treated the same way).
-    keyFunc := func(ctx context.Context, keyID uuid.UUID) (*rsa.PublicKey, error) {
+    keyFunc := func(ctx context.Context, keyID uuid.UUID) (crypto.PublicKey, error) {
         return retrievePublicKey(ctx, keyID)
     }
 
@@ -97,9 +97,14 @@ redirects or decodes such paths. `NewJAPIKey` returns a `*ValidationError` and
 
 ## Key requirements
 
-Keys returned by the `JWKCallback` must be RSA keys of 2048 to 4096 bits with an
-odd modulus and an odd exponent between 3 and 2^31-1, the same rules applied
-when building a JWKS. Other keys cause the token to be rejected.
+The token's `ver` claim selects the algorithm and the key type: `japikey-v2`
+tokens are verified with ES256 and need an `*ecdsa.PublicKey` on P-256 (a valid
+curve point), and `japikey-v1` tokens (minted by earlier releases) are verified
+with RS256 and need an `*rsa.PublicKey` of 2048 to 4096 bits with an odd modulus
+and an odd exponent between 3 and 2^31-1. These are the same rules applied when
+building a JWKS. A key of another type, or of the wrong type for the token's
+version, causes the token to be rejected. Unknown versions, including
+`japikey-v0`, are rejected.
 
 ## Order of checks
 
@@ -113,7 +118,7 @@ and claims can still reach the callback: rate-limit and cache lookups.
 ## Security Features
 
 - Tokens over 4096 bytes are rejected before parsing; only canonical base64url is accepted
-- RS256 only; tokens with a `crit` header are rejected, as no extensions are supported
+- Exactly one algorithm per version (v1 RS256, v2 ES256), taken from the signed `ver` claim and never from the `alg` header; tokens with a `crit` header are rejected, as no extensions are supported
 - `exp` and `nbf` get no clock skew tolerance; `iat` may be up to 30s in the future
 - The callback runs synchronously and must honor its context for `Timeout` and cancellation to take effect; concurrent lookups are bounded by your own concurrency (backpressure), with no background goroutines
 - Error messages are fixed and never include token contents

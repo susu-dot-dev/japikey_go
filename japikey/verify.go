@@ -2,6 +2,8 @@ package japikey
 
 import (
 	"context"
+	"crypto"
+	"crypto/ecdsa"
 	"crypto/rsa"
 	"database/sql"
 	"errors"
@@ -9,6 +11,8 @@ import (
 	"io/fs"
 	"log"
 	"runtime/debug"
+	"strconv"
+	"strings"
 	"time"
 	"uuid"
 
@@ -38,10 +42,15 @@ import (
 // (or is revoked). sql.ErrNoRows and fs.ErrNotExist (also when wrapped) are
 // accepted as equivalent, so that an unknown key is never answered differently
 // from a revoked one. Any other error is treated as a retrieval failure
-// (*InternalError). A nil key with a nil error is treated as key-not-found. The returned key must be an RSA
-// key of 2048 to 4096 bits with a sane exponent (see jwks.ValidatePublicKey),
-// or the token is rejected.
-type JWKCallback func(ctx context.Context, keyID uuid.UUID) (*rsa.PublicKey, error)
+// (*InternalError). A nil key with a nil error is treated as key-not-found.
+//
+// The returned key must match the version of the token being verified:
+// version 2 tokens (ES256, what NewJAPIKey mints) need an *ecdsa.PublicKey on
+// P-256, and version 1 tokens (RS256, minted by earlier releases) need an
+// *rsa.PublicKey of 2048 to 4096 bits with a sane exponent. Keys must also pass
+// jwks.ValidatePublicKey. A key of any other type, or one that does not match
+// the token's version, causes the token to be rejected.
+type JWKCallback func(ctx context.Context, keyID uuid.UUID) (crypto.PublicKey, error)
 
 // VerificationResult holds the result of a successful token verification.
 type VerificationResult struct {
@@ -79,24 +88,59 @@ type VerifyConfig struct {
 	Audience string
 }
 
-// validateVersion validates the version claim from MapClaims.
-func validateVersion(claims jwt.MapClaims) error {
+// parseVersion parses the version claim ("japikey-v<N>") from MapClaims and
+// returns N. Only versions in algorithmByVersion are accepted, which excludes
+// "japikey-v0" and anything newer than this library understands. The number
+// must be in canonical form (no sign, leading zeros or other characters), so
+// each version has exactly one spelling.
+func parseVersion(claims jwt.MapClaims) (int, error) {
 	versionRaw, ok := claims[VersionClaim]
 	if !ok {
-		return japikeyerrors.NewValidationError("token missing version claim")
+		return 0, japikeyerrors.NewValidationError("token missing version claim")
 	}
 
 	version, ok := versionRaw.(string)
 	if !ok {
-		return japikeyerrors.NewValidationError("token version claim must be a string")
+		return 0, japikeyerrors.NewValidationError("token version claim must be a string")
 	}
 
-	if version != "japikey-v1" {
-		// Fixed message: never echo attacker-controlled token contents into errors
-		return japikeyerrors.NewValidationError("token has an unsupported version")
+	// Fixed messages below: never echo attacker-controlled token contents into errors
+	digits, ok := strings.CutPrefix(version, VersionPrefix)
+	if !ok || digits == "" || len(digits) > 3 {
+		return 0, japikeyerrors.NewValidationError("token has an unsupported version")
+	}
+	for i := 0; i < len(digits); i++ {
+		if digits[i] < '0' || digits[i] > '9' {
+			return 0, japikeyerrors.NewValidationError("token has an unsupported version")
+		}
+	}
+	n, err := strconv.Atoi(digits)
+	if err != nil || strconv.Itoa(n) != digits {
+		return 0, japikeyerrors.NewValidationError("token has an unsupported version")
+	}
+	if _, ok := algorithmByVersion[n]; !ok {
+		return 0, japikeyerrors.NewValidationError("token has an unsupported version")
 	}
 
-	return nil
+	return n, nil
+}
+
+// checkKeyMatchesVersion requires the key's type to be the one the token's
+// version dictates: RSA for version 1, EC for version 2. The signature
+// algorithm is pinned to the version separately; this keeps a key of one family
+// from being used under the other version.
+func checkKeyMatchesVersion(version int, key crypto.PublicKey) error {
+	switch algorithmByVersion[version] {
+	case AlgorithmRS256:
+		if _, ok := key.(*rsa.PublicKey); ok {
+			return nil
+		}
+	case AlgorithmES256:
+		if _, ok := key.(*ecdsa.PublicKey); ok {
+			return nil
+		}
+	}
+	return japikeyerrors.NewValidationError("public key does not match the token version")
 }
 
 // validateIssuer validates that the issuer claim exactly matches baseIssuerURL/keyID.
@@ -210,30 +254,32 @@ func validateSubject(claims jwt.MapClaims) error {
 	return nil
 }
 
-// validateJAPIKeyClaims validates JAPIKey-specific requirements on the claims.
-func validateJAPIKeyClaims(claims jwt.MapClaims, baseIssuerURL string, keyID uuid.UUID) error {
-	if err := validateVersion(claims); err != nil {
-		return err
+// validateJAPIKeyClaims validates JAPIKey-specific requirements on the claims
+// and returns the key version.
+func validateJAPIKeyClaims(claims jwt.MapClaims, baseIssuerURL string, keyID uuid.UUID) (int, error) {
+	version, err := parseVersion(claims)
+	if err != nil {
+		return 0, err
 	}
 
 	if err := validateIssuedAt(claims, time.Now()); err != nil {
-		return err
+		return 0, err
 	}
 
 	if err := validateSubject(claims); err != nil {
-		return err
+		return 0, err
 	}
 
 	issuer, err := claims.GetIssuer()
 	if err != nil {
-		return japikeyerrors.NewValidationError("Invalid issuer")
+		return 0, japikeyerrors.NewValidationError("Invalid issuer")
 	}
 
 	if err := validateIssuer(issuer, baseIssuerURL, keyID); err != nil {
-		return err
+		return 0, err
 	}
 
-	return nil
+	return version, nil
 }
 
 // checkTokenSize validates that the token size is within the maximum allowed limit.
@@ -295,10 +341,12 @@ func checkTokenFormat(tokenString string) error {
 // garbage signature that passes those checks, so forged tokens do reach the
 // callback.
 //
-// The returned key is checked with jwks.ValidatePublicKey, the same check
-// applied when building a JWKS, so a weak (<2048-bit) or oversized (>4096-bit)
-// key is refused whatever source the callback got it from.
-func lookupKey(ctx context.Context, keyFunc JWKCallback, keyID uuid.UUID) (key *rsa.PublicKey, err error) {
+// The returned key must be of the type the token's version requires, and is
+// checked with jwks.ValidatePublicKey, the same check applied when building a
+// JWKS, so a weak or malformed key (a <2048-bit or >4096-bit RSA key, an EC
+// point that is not on P-256) is refused whatever source the callback got it
+// from.
+func lookupKey(ctx context.Context, keyFunc JWKCallback, keyID uuid.UUID, version int) (key crypto.PublicKey, err error) {
 	// Do not start I/O on behalf of a caller that has already gone away
 	if ctx.Err() != nil {
 		return nil, japikeyerrors.NewDatabaseTimeoutError("key retrieval timed out")
@@ -329,8 +377,11 @@ func lookupKey(ctx context.Context, keyFunc JWKCallback, keyID uuid.UUID) (key *
 		}
 		return nil, japikeyerrors.NewInternalError("failed to retrieve public key")
 	}
-	if key == nil || key.N == nil {
+	if isNilKey(key) {
 		return nil, japikeyerrors.NewKeyNotFoundError("public key not found")
+	}
+	if err := checkKeyMatchesVersion(version, key); err != nil {
+		return nil, err
 	}
 	if err := jwks.ValidatePublicKey(key); err != nil {
 		return nil, japikeyerrors.NewValidationError("public key does not meet requirements")
@@ -342,7 +393,7 @@ func lookupKey(ctx context.Context, keyFunc JWKCallback, keyID uuid.UUID) (key *
 // a buggy callback cannot crash the process through Verify. The panic value and
 // stack are logged (never returned) so the bug stays diagnosable, as it would
 // be with net/http's own recovery.
-func callKeyFunc(ctx context.Context, keyFunc JWKCallback, keyID uuid.UUID) (key *rsa.PublicKey, err error) {
+func callKeyFunc(ctx context.Context, keyFunc JWKCallback, keyID uuid.UUID) (key crypto.PublicKey, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("[japikey] key callback panicked: %v\n%s", r, debug.Stack())
@@ -350,6 +401,22 @@ func callKeyFunc(ctx context.Context, keyFunc JWKCallback, keyID uuid.UUID) (key
 		}
 	}()
 	return keyFunc(ctx, keyID)
+}
+
+// isNilKey reports whether key is nil, including a typed nil pointer wrapped in
+// the interface, which a callback returning (*rsa.PublicKey)(nil) produces.
+func isNilKey(key crypto.PublicKey) bool {
+	switch k := key.(type) {
+	case nil:
+		return true
+	case *rsa.PublicKey:
+		return k == nil || k.N == nil
+	case *ecdsa.PublicKey:
+		// Missing coordinates are rejected as an invalid key by
+		// jwks.ValidatePublicKey, not treated as "not found"
+		return k == nil
+	}
+	return false
 }
 
 // isNotFound reports whether a callback error means "this key does not exist".
@@ -366,8 +433,8 @@ func isNotFound(err error) bool {
 
 // precheckToken runs every check that does not need the public key, on the
 // decoded but not yet verified token: size, strict format, kid, version,
-// issued-at, subject and issuer. It returns the key ID from the header and the
-// decoded (unverified) claims. Expiry is deliberately not checked here so that
+// issued-at, subject and issuer. It returns the key ID from the header, the key
+// version and the decoded (unverified) claims. Expiry is deliberately not checked here so that
 // ShouldVerify, which only routes tokens, keeps accepting expired ones.
 //
 // Verify runs it before any key lookup, so malformed tokens and tokens that
@@ -375,42 +442,43 @@ func isNotFound(err error) bool {
 // genuine token from a forged one: a token with a random key ID, matching
 // claims and a garbage signature passes, and Verify then looks the key up.
 // The same claim checks run again after the signature is verified.
-func precheckToken(tokenString string, baseIssuerURL string) (uuid.UUID, jwt.MapClaims, error) {
+func precheckToken(tokenString string, baseIssuerURL string) (uuid.UUID, int, jwt.MapClaims, error) {
 	// FR-020: Enforce maximum token size limit BEFORE any parsing
 	if err := checkTokenSize(tokenString); err != nil {
-		return uuid.Nil(), nil, err
+		return uuid.Nil(), 0, nil, err
 	}
 
 	// Reject anything that is not plain base64url before parsing (see checkTokenFormat)
 	if err := checkTokenFormat(tokenString); err != nil {
-		return uuid.Nil(), nil, err
+		return uuid.Nil(), 0, nil, err
 	}
 
 	parser := jwt.NewParser(jwt.WithStrictDecoding())
 	claims := jwt.MapClaims{}
 	token, _, err := parser.ParseUnverified(tokenString, claims)
 	if err != nil {
-		return uuid.Nil(), nil, japikeyerrors.NewValidationError("token is malformed")
+		return uuid.Nil(), 0, nil, japikeyerrors.NewValidationError("token is malformed")
 	}
 
 	// RFC 7515 4.1.11: a verifier must reject a token whose "crit" header lists
 	// extensions it does not understand, and japikey understands none. The
 	// library does not enforce this itself.
 	if _, ok := token.Header["crit"]; ok {
-		return uuid.Nil(), nil, japikeyerrors.NewValidationError("token uses unsupported critical header extensions")
+		return uuid.Nil(), 0, nil, japikeyerrors.NewValidationError("token uses unsupported critical header extensions")
 	}
 
 	// FR-027: Validate key ID is present and properly formatted
 	keyID, err := extractKeyIDFromHeader(token.Header)
 	if err != nil {
-		return uuid.Nil(), nil, err
+		return uuid.Nil(), 0, nil, err
 	}
 
-	if err := validateJAPIKeyClaims(claims, baseIssuerURL, keyID); err != nil {
-		return uuid.Nil(), nil, err
+	version, err := validateJAPIKeyClaims(claims, baseIssuerURL, keyID)
+	if err != nil {
+		return uuid.Nil(), 0, nil, err
 	}
 
-	return keyID, claims, nil
+	return keyID, version, claims, nil
 }
 
 // classifyParseError maps an error from the verifying JWT parser to one of our
@@ -479,7 +547,7 @@ func Verify(ctx context.Context, tokenString string, config VerifyConfig, keyFun
 	}
 
 	// Reject everything we can without the key, before any I/O
-	keyID, unverified, err := precheckToken(tokenString, config.BaseIssuerURL)
+	keyID, version, unverified, err := precheckToken(tokenString, config.BaseIssuerURL)
 	if err != nil {
 		return nil, japikeyerrors.NewUnauthorizedError(err)
 	}
@@ -498,15 +566,17 @@ func Verify(ctx context.Context, tokenString string, config VerifyConfig, keyFun
 	defer cancel()
 
 	// FR-014: Use golang-jwt library for parsing and validation
-	// FR-010, FR-022: Validate algorithm is exactly RS256 (checked by the
-	// parser before the keyfunc runs, so a wrong alg never triggers a lookup)
+	// FR-010, FR-022: Validate the algorithm is exactly the one the token's
+	// version dictates (v1 RS256, v2 ES256). It comes from the version claim,
+	// never from the token's alg header, and is checked by the parser before
+	// the keyfunc runs, so a wrong alg never triggers a lookup
 	// FR-016: Validate exp claim is present and not expired (no clock skew)
 	// FR-017: Validate nbf if present (no clock skew)
 	// FR-018: Validate iat is present and not in the future (IssuedAtLeeway);
 	// done in validateJAPIKeyClaims, because the parser's leeway cannot be
 	// applied to iat alone
 	parserOptions := []jwt.ParserOption{
-		jwt.WithValidMethods([]string{AlgorithmRS256}),
+		jwt.WithValidMethods([]string{algorithmByVersion[version]}),
 		jwt.WithExpirationRequired(),
 		// Reject non-canonical base64url (non-zero trailing bits), so a token's
 		// signature segment has exactly one valid encoding
@@ -530,7 +600,7 @@ func Verify(ctx context.Context, tokenString string, config VerifyConfig, keyFun
 		}
 
 		// Retrieve the public key using the callback (bounded by ctx)
-		publicKey, err := lookupKey(ctx, keyFunc, keyID)
+		publicKey, err := lookupKey(ctx, keyFunc, keyID, version)
 		if err != nil {
 			return nil, err
 		}
@@ -556,8 +626,12 @@ func Verify(ctx context.Context, tokenString string, config VerifyConfig, keyFun
 	}
 
 	// Validate JAPIKey-specific requirements again, on the verified claims
-	if err := validateJAPIKeyClaims(claims, config.BaseIssuerURL, keyID); err != nil {
+	verifiedVersion, err := validateJAPIKeyClaims(claims, config.BaseIssuerURL, keyID)
+	if err != nil {
 		return nil, japikeyerrors.NewUnauthorizedError(err)
+	}
+	if verifiedVersion != version {
+		return nil, japikeyerrors.NewUnauthorizedError(japikeyerrors.NewValidationError("token has an unsupported version"))
 	}
 
 	// Return the validated claims (preserving all custom claims)
@@ -582,6 +656,6 @@ func ShouldVerify(tokenString string, baseIssuer string) bool {
 	if validateBaseIssuerURL(baseIssuer, true) != nil {
 		return false
 	}
-	_, _, err := precheckToken(tokenString, baseIssuer)
+	_, _, _, err := precheckToken(tokenString, baseIssuer)
 	return err == nil
 }

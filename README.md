@@ -1,6 +1,8 @@
 # JAPIKey
 
-JAPIKey is a Go library for minting and verifying API keys as RS256 JWTs. Each key gets its own RSA key pair; the private key is discarded after signing, so only the public key needs to be stored (and served as a JWKS).
+JAPIKey is a Go library for minting and verifying API keys as ES256 JWTs. Each key gets its own ECDSA P-256 key pair; the private key is discarded after signing, so only the public key needs to be stored (and served as a JWKS).
+
+New keys are version 2 (`ver: "japikey-v2"`, ES256). Keys minted by earlier releases are version 1 (`japikey-v1`, RS256, 2048-bit RSA) and keep verifying: the token's version picks the algorithm, and both kinds of public key can be stored side by side. See [Upgrading from version 1](#upgrading-from-version-1).
 
 ## Installation
 
@@ -52,7 +54,7 @@ package main
 
 import (
     "context"
-    "crypto/rsa"
+    "crypto"
     "errors"
     "fmt"
     "log"
@@ -72,7 +74,7 @@ func main() {
 
     // Look up the public key. Honor ctx for any I/O. Return a
     // *japikey.KeyNotFoundError if the key does not exist or is revoked.
-    keyFunc := func(ctx context.Context, keyID uuid.UUID) (*rsa.PublicKey, error) {
+    keyFunc := func(ctx context.Context, keyID uuid.UUID) (crypto.PublicKey, error) {
         return retrievePublicKey(ctx, keyID)
     }
 
@@ -92,7 +94,7 @@ func main() {
 }
 
 // retrievePublicKey is yours to implement (database, or a fetch of the JWKS endpoint).
-func retrievePublicKey(ctx context.Context, keyID uuid.UUID) (*rsa.PublicKey, error) {
+func retrievePublicKey(ctx context.Context, keyID uuid.UUID) (crypto.PublicKey, error) {
     return nil, fmt.Errorf("not implemented")
 }
 ```
@@ -134,10 +136,17 @@ Third-party verifiers must not trust `iss` to locate the JWKS: check that it equ
 
 ## Security
 
-- Each key uses its own 2048-bit RSA pair; the private key is discarded after signing (it is not zeroed from memory).
-- RS256 only; tokens over 4096 bytes are rejected. `exp` and `nbf` have no clock skew tolerance; `iat` allows 30s.
+- Each key uses its own P-256 pair; the private key is discarded after signing (it is not zeroed from memory).
+- The algorithm is chosen by the token's signed `ver` claim, never by its `alg` header: version 2 is ES256 only, version 1 is RS256 only. Unknown versions (including `japikey-v0`) are rejected, and the key returned by your callback must be the type that version needs. Tokens over 4096 bytes are rejected. `exp` and `nbf` have no clock skew tolerance; `iat` allows 30s.
 - Revocation takes effect when the JWKS stops being served (or `MaxAgeSeconds` caches expire). Keys have no maximum lifetime.
 
 ## License
 
 This project is licensed under the terms specified in the LICENSE file.
+
+## Upgrading from version 1
+
+- `NewJAPIKey` now mints ES256 / `japikey-v2` keys. `JAPIKey.PublicKey` is a `crypto.PublicKey` holding an `*ecdsa.PublicKey`.
+- `JWKCallback`, `KeyLookupResult.PublicKey` and `NewJWKS` take a `crypto.PublicKey` instead of `*rsa.PublicKey`. Return an `*rsa.PublicKey` for existing version 1 keys and an `*ecdsa.PublicKey` for version 2 keys. Storing keys as PKIX (`x509.MarshalPKIXPublicKey` / `ParsePKIXPublicKey`) handles both without a schema change.
+- The served JWK of a version 2 key is `{"kty":"EC","crv":"P-256","x":...,"y":...,"alg":"ES256","ver":2,"kid":...}`. Version 1 JWKs are unchanged (no `alg` or `ver`).
+- `japikey-v0` tokens are no longer accepted.

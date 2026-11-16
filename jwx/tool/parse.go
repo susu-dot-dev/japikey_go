@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/ecdh"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -22,6 +23,9 @@ const (
 	// maxExponentBytes caps the decoded public exponent length. Real exponents
 	// (65537) are 3 bytes; 4 bytes always fits in an int without overflow.
 	maxExponentBytes = 4
+
+	// p256CoordinateBytes is the fixed length of a P-256 coordinate (RFC 7518 6.2.1.2)
+	p256CoordinateBytes = 32
 )
 
 // readLimited reads at most max bytes from r and returns an error if the
@@ -62,6 +66,14 @@ func parseAction(ctx context.Context, c *cli.Command) error {
 		return fmt.Errorf("missing required field 'kty' in JWK")
 	}
 
+	switch kty {
+	case "RSA":
+	case "EC":
+		return parseEC(jwkObj)
+	default:
+		return fmt.Errorf("key type must be RSA or EC, got: %s", kty)
+	}
+
 	n, ok := jwkObj["n"].(string)
 	if !ok || n == "" {
 		return fmt.Errorf("missing required field 'n' (modulus) in JWK")
@@ -70,11 +82,6 @@ func parseAction(ctx context.Context, c *cli.Command) error {
 	e, ok := jwkObj["e"].(string)
 	if !ok || e == "" {
 		return fmt.Errorf("missing required field 'e' (exponent) in JWK")
-	}
-
-	// Validate that it's an RSA key
-	if kty != "RSA" {
-		return fmt.Errorf("key type must be RSA, got: %s", kty)
 	}
 
 	// Decode the modulus (n) and exponent (e) from Base64url
@@ -125,5 +132,41 @@ func parseAction(ctx context.Context, c *cli.Command) error {
 	publicKeyBase64 := base64.StdEncoding.EncodeToString(modulus.Bytes())
 	fmt.Println(publicKeyBase64)
 
+	return nil
+}
+
+// parseEC handles a P-256 JWK: it checks the members and prints the public key
+// as the base64 of the uncompressed SEC1 point (0x04 || X || Y).
+func parseEC(jwkObj map[string]interface{}) error {
+	if crv, _ := jwkObj["crv"].(string); crv != "P-256" {
+		return fmt.Errorf("curve (crv) must be P-256")
+	}
+	coord := func(name string) ([]byte, error) {
+		v, ok := jwkObj[name].(string)
+		if !ok || v == "" {
+			return nil, fmt.Errorf("missing required field '%s' in JWK", name)
+		}
+		b, err := base64.RawURLEncoding.DecodeString(v)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode %s from Base64url: %w", name, err)
+		}
+		if len(b) != p256CoordinateBytes {
+			return nil, fmt.Errorf("%s must be exactly %d bytes", name, p256CoordinateBytes)
+		}
+		return b, nil
+	}
+	x, err := coord("x")
+	if err != nil {
+		return err
+	}
+	y, err := coord("y")
+	if err != nil {
+		return err
+	}
+	point := append([]byte{0x04}, append(x, y...)...)
+	if _, err := ecdh.P256().NewPublicKey(point); err != nil {
+		return fmt.Errorf("x and y are not a valid P-256 point")
+	}
+	fmt.Println(base64.StdEncoding.EncodeToString(point))
 	return nil
 }

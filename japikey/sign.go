@@ -1,10 +1,11 @@
 package japikey
 
 import (
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/rsa"
 	"fmt"
-	"math/big"
 	"net/url"
 	"path"
 	"strings"
@@ -33,8 +34,10 @@ type Config struct {
 }
 
 type JAPIKey struct {
-	JWT       string
-	PublicKey *rsa.PublicKey
+	JWT string
+	// PublicKey is the public half of the key pair, to be stored and served as
+	// a JWKS. Keys minted by this version are *ecdsa.PublicKey (P-256).
+	PublicKey crypto.PublicKey
 	KeyID     uuid.UUID
 }
 
@@ -44,7 +47,7 @@ func (j *JAPIKey) ToJWKS() (*jwks.JWKS, error) {
 	}
 
 	if j.PublicKey == nil {
-		return nil, errors.NewValidationError("RSA public key cannot be nil")
+		return nil, errors.NewValidationError("public key cannot be nil")
 	}
 
 	return jwks.NewJWKS(j.PublicKey, j.KeyID)
@@ -133,9 +136,9 @@ func NewJAPIKey(config Config) (*JAPIKey, error) {
 		return nil, err
 	}
 
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return nil, errors.NewInternalError("failed to generate RSA key pair")
+		return nil, errors.NewInternalError("failed to generate EC key pair")
 	}
 
 	keyID := uuid.New()
@@ -154,8 +157,8 @@ func NewJAPIKey(config Config) (*JAPIKey, error) {
 	claims["aud"] = config.Audience
 	claims["exp"] = config.ExpiresAt.Unix()
 	claims["iat"] = time.Now().Unix()
-	claims["ver"] = "japikey-v1"
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	claims["ver"] = fmt.Sprintf("%s%d", VersionPrefix, CurrentVersion)
+	token := jwt.NewWithClaims(jwt.SigningMethodES256, claims)
 
 	token.Header["kid"] = keyID
 
@@ -171,12 +174,12 @@ func NewJAPIKey(config Config) (*JAPIKey, error) {
 
 	// Copy the public key out of the private key struct. Returning
 	// &privateKey.PublicKey would be an interior pointer, which keeps the entire
-	// rsa.PrivateKey (D, primes, precomputed values) reachable by the GC for as
+	// ecdsa.PrivateKey (the scalar D) reachable by the GC for as
 	// long as the caller holds the public key. The private key is meant to be
 	// discarded as soon as this function returns.
-	publicKey := &rsa.PublicKey{
-		N: new(big.Int).Set(privateKey.N),
-		E: privateKey.E,
+	publicKey, err := copyPublicKey(&privateKey.PublicKey)
+	if err != nil {
+		return nil, errors.NewInternalError("failed to export public key")
 	}
 
 	result := &JAPIKey{
@@ -186,6 +189,16 @@ func NewJAPIKey(config Config) (*JAPIKey, error) {
 	}
 
 	return result, nil
+}
+
+// copyPublicKey returns an independent copy of pub, sharing no memory with the
+// private key it came from.
+func copyPublicKey(pub *ecdsa.PublicKey) (*ecdsa.PublicKey, error) {
+	point, err := pub.Bytes()
+	if err != nil {
+		return nil, err
+	}
+	return ecdsa.ParseUncompressedPublicKey(elliptic.P256(), point)
 }
 
 func validateConfig(config Config) error {

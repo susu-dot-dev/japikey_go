@@ -15,14 +15,21 @@ func main() {
 		Commands: []*cli.Command{
 			{
 				Name:   "parse",
-				Usage:  "Parse JWK JSON from stdin and output public key as base64",
+				Usage:  "Parse an RSA or P-256 JWK from stdin and output the public key as base64",
 				Action: parseAction,
 			},
 			{
 				Name:      "generate",
 				Usage:     "Generate JWKS JSON from base64 public key and UUID",
 				ArgsUsage: "[KEY_ID]",
-				Action:    generateAction,
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:  "alg",
+						Value: "auto",
+						Usage: "key algorithm: ES256 (P-256 point, version 2), RS256 (RSA modulus, version 1) or auto to detect it from the key",
+					},
+				},
+				Action: generateAction,
 			},
 		},
 	}

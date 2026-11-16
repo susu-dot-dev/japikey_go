@@ -2,6 +2,8 @@ package middleware
 
 import (
 	"context"
+	"crypto"
+	"crypto/ecdsa"
 	"crypto/rsa"
 	"encoding/json"
 	"errors"
@@ -16,7 +18,9 @@ import (
 )
 
 type KeyLookupResult struct {
-	PublicKey *rsa.PublicKey
+	// PublicKey is an *ecdsa.PublicKey (P-256) for version 2 keys, or an
+	// *rsa.PublicKey for version 1 keys. Both can be stored side by side.
+	PublicKey crypto.PublicKey
 	Revoked   bool
 }
 
@@ -132,7 +136,7 @@ func (h *JWKSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if result == nil || result.PublicKey == nil || result.Revoked {
+	if result == nil || isNilPublicKey(result.PublicKey) || result.Revoked {
 		sendErrorResponse(w, http.StatusNotFound, "KeyNotFoundError", "API key not found")
 		return
 	}
@@ -157,4 +161,19 @@ func (h *JWKSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if _, err := w.Write(jsonData); err != nil {
 		log.Printf("[JWKS] Error writing response: %v", err)
 	}
+}
+
+// isNilPublicKey reports whether key is nil, including a typed nil pointer held
+// in the interface (for example a driver returning a nil *ecdsa.PublicKey for a
+// missing row), which must be answered as "not found" like any other absent key.
+func isNilPublicKey(key crypto.PublicKey) bool {
+	switch k := key.(type) {
+	case nil:
+		return true
+	case *rsa.PublicKey:
+		return k == nil
+	case *ecdsa.PublicKey:
+		return k == nil
+	}
+	return false
 }

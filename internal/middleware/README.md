@@ -41,7 +41,7 @@ func (db *MyDatabase) GetKey(ctx context.Context, kid string) (*japikey.KeyLooku
 		return nil, err // wrapped errors are fine; context.DeadlineExceeded maps to 503
 	}
 
-	// 3. Parse your stored public key to *rsa.PublicKey
+	// 3. Parse your stored public key to an *ecdsa.PublicKey (version 2) or *rsa.PublicKey (version 1)
 	publicKey, err := parsePublicKey(keyData.PublicKeyPEM)
 	if err != nil {
 		return nil, err
@@ -97,14 +97,19 @@ Expected response:
 {
   "keys": [
     {
-      "kty": "RSA",
+      "kty": "EC",
       "kid": "550e8400-e29b-41d4-a716-446655440000",
-      "n": "0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx4cbbfAAtVT86zwu1RK7aPFFxuhDR1L6tSoc_BJECPebWKRXjBZCiFV4n3oknjhMstn64tZ_2W-5JsGY4Hc5n9yBXArwl93lqt7_RN5w6Cf0h4QyQ5v-65YGjQR0_FDW2QvzqY368QQMicAtaSqzs8KJZgnYb9c7d0zgdAZHzu6qMQvRL5hajrn1n91CbOpbISD08qNLyrdkt-bFTWhAI4vMQFh6WeZu0fM4lFd2NcRwr3XPksINHaQ-G_xBniIqbw0Ls1jF44-csFCur-kEgU8awapJzKnqDKgw",
-      "e": "AQAB"
+      "crv": "P-256",
+      "x": "0w6qKrCjP_3e2QIQOKb0Ltfb_82Ty9nWBxhuxBS4oaM",
+      "y": "8iZyeydfUoUqrSM5RrY04AkAA3cZqFQyGyYyhS42OUM",
+      "alg": "ES256",
+      "ver": 2
     }
   ]
 }
 ```
+
+Keys minted by earlier releases (version 1) are RSA, and are served exactly as before, with `kty`, `kid`, `n` and `e` only (no `alg` or `ver`).
 
 ## API Reference
 
@@ -122,13 +127,13 @@ Interface that applications must implement to provide key lookup functionality.
 
 ```go
 type KeyLookupResult struct {
-	PublicKey *rsa.PublicKey
+	PublicKey crypto.PublicKey // *ecdsa.PublicKey (v2) or *rsa.PublicKey (v1)
 	Revoked   bool
 }
 ```
 
 Contains the result of a database key lookup:
-- `PublicKey`: The RSA public key (nil if key not found)
+- `PublicKey`: The public key: an `*ecdsa.PublicKey` for version 2 keys or an `*rsa.PublicKey` for version 1 keys (nil if key not found)
 - `Revoked`: Whether the key has been revoked
 
 ### CreateJWKSRouter
@@ -143,7 +148,7 @@ type JWKSRouterConfig struct {
 }
 ```
 
-Returns an error if `DB` is nil. Only the path `/{kid}/.well-known/jwks.json` is served, for any HTTP method. A `kid` that is not a UUID gets 404 without reaching the driver. The key must be 2048 to 4096 bits, or the response is 500.
+Returns an error if `DB` is nil. Only the path `/{kid}/.well-known/jwks.json` is served, for any HTTP method. A `kid` that is not a UUID gets 404 without reaching the driver. The key must be a P-256 `*ecdsa.PublicKey` or an RSA key of 2048 to 4096 bits, or the response is 500.
 
 ## Error Handling
 
@@ -164,7 +169,7 @@ Here's a simple mock database driver for testing:
 
 ```go
 type MockDatabaseDriver struct {
-	Keys    map[string]*rsa.PublicKey
+	Keys    map[string]crypto.PublicKey
 	Revoked map[string]bool
 }
 
@@ -178,7 +183,7 @@ func (m *MockDatabaseDriver) GetKey(ctx context.Context, kid string) (*japikey.K
 
 func NewMockDatabaseDriver() *MockDatabaseDriver {
 	return &MockDatabaseDriver{
-		Keys:    make(map[string]*rsa.PublicKey),
+		Keys:    make(map[string]crypto.PublicKey),
 		Revoked: make(map[string]bool),
 	}
 }
@@ -200,7 +205,7 @@ func TestJWKSEndpoint(t *testing.T) {
 	// Create mock database
 	mockDB := NewMockDatabaseDriver()
 
-	// Add a real key (the handler rejects keys under 2048 bits)
+	// Add a real key (the handler rejects weak or malformed keys)
 	k, err := japikey.NewJAPIKey(japikey.Config{
 		Subject:   "test",
 		Issuer:    "https://example.com",
@@ -231,7 +236,7 @@ func TestJWKSEndpoint(t *testing.T) {
 ## Troubleshooting
 
 - **404 for a valid key**: the key is revoked, `GetKey` returned `*KeyNotFoundError` or a nil `PublicKey`, or the handler is mounted without `http.StripPrefix`, so the path doesn't match `/{kid}/.well-known/jwks.json`.
-- **500 for a valid key**: the stored key is not 2048 to 4096 bits (logged), or the driver returned a plain error.
+- **500 for a valid key**: the stored key is not a valid P-256 or 2048 to 4096 bit RSA key (logged), or the driver returned a plain error.
 - **503**: the driver timed out or reported unavailable; return `*DatabaseTimeoutError` / `*DatabaseUnavailableError` (or let `context.DeadlineExceeded` through).
 
 ## Security Considerations
