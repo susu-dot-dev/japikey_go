@@ -85,10 +85,10 @@ if err != nil {
 fmt.Println(string(jwksJSON))
 ```
 
-### Creating JWKS from RSA Public Key
+### Creating JWKS from a Public Key
 
 ```go
-// publicKey is an *rsa.PublicKey, keyID a uuid.UUID
+// publicKey is an *ecdsa.PublicKey (or an *rsa.PublicKey for a version 1 key), keyID a uuid.UUID
 jwks, err := japikey.NewJWKS(publicKey, keyID)
 if err != nil {
     log.Fatal(err)

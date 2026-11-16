@@ -2,6 +2,7 @@ package japikey
 
 import (
 	"context"
+	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
 	stderrors "errors"
@@ -19,8 +20,8 @@ import (
 const hardeningKeyID = "123e4567-e89b-12d3-a456-426614174000"
 
 // countingKeyFunc returns pubKey and counts how often it was invoked.
-func countingKeyFunc(pubKey *rsa.PublicKey, calls *atomic.Int32) JWKCallback {
-	return func(context.Context, uuid.UUID) (*rsa.PublicKey, error) {
+func countingKeyFunc(pubKey crypto.PublicKey, calls *atomic.Int32) JWKCallback {
+	return func(context.Context, uuid.UUID) (crypto.PublicKey, error) {
 		calls.Add(1)
 		return pubKey, nil
 	}
@@ -37,7 +38,13 @@ func TestVerifyRejectsBeforeKeyLookup(t *testing.T) {
 		{"wrong issuer host", func(c jwt.MapClaims) { c["iss"] = "https://evil.example/" + hardeningKeyID }, hardeningKeyID},
 		{"issuer for another kid", func(c jwt.MapClaims) { c["iss"] = "https://example.com/" + uuid.New().String() }, hardeningKeyID},
 		{"missing issuer", func(c jwt.MapClaims) { delete(c, "iss") }, hardeningKeyID},
-		{"wrong version", func(c jwt.MapClaims) { c["ver"] = "japikey-v2" }, hardeningKeyID},
+		{"unknown future version", func(c jwt.MapClaims) { c["ver"] = "japikey-v3" }, hardeningKeyID},
+		{"version 0", func(c jwt.MapClaims) { c["ver"] = "japikey-v0" }, hardeningKeyID},
+		{"version with leading zero", func(c jwt.MapClaims) { c["ver"] = "japikey-v02" }, hardeningKeyID},
+		{"version with sign", func(c jwt.MapClaims) { c["ver"] = "japikey-v+2" }, hardeningKeyID},
+		{"version with suffix", func(c jwt.MapClaims) { c["ver"] = "japikey-v2.0" }, hardeningKeyID},
+		{"version uppercase", func(c jwt.MapClaims) { c["ver"] = "JAPIKEY-V2" }, hardeningKeyID},
+		{"version without number", func(c jwt.MapClaims) { c["ver"] = "japikey-v" }, hardeningKeyID},
 		{"missing version", func(c jwt.MapClaims) { delete(c, "ver") }, hardeningKeyID},
 		{"missing iat", func(c jwt.MapClaims) { delete(c, "iat") }, hardeningKeyID},
 		{"missing sub", func(c jwt.MapClaims) { delete(c, "sub") }, hardeningKeyID},
@@ -90,10 +97,10 @@ func TestVerifyErrorsAreIndistinguishable(t *testing.T) {
 	cfg := VerifyConfig{BaseIssuerURL: "https://example.com/"}
 
 	cases := map[string]JWKCallback{
-		"unknown key": func(context.Context, uuid.UUID) (*rsa.PublicKey, error) {
+		"unknown key": func(context.Context, uuid.UUID) (crypto.PublicKey, error) {
 			return nil, errors.NewKeyNotFoundError("no such key " + hardeningKeyID)
 		},
-		"revoked key (nil, nil)": func(context.Context, uuid.UUID) (*rsa.PublicKey, error) { return nil, nil },
+		"revoked key (nil, nil)": func(context.Context, uuid.UUID) (crypto.PublicKey, error) { return nil, nil },
 		"wrong key":              mockKeyFunc(&otherKey.PublicKey),
 	}
 	expired := baseTestClaims(hardeningKeyID)

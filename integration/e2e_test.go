@@ -11,7 +11,9 @@ package integration
 
 import (
 	"context"
-	"crypto/rsa"
+	"crypto"
+	"crypto/ecdsa"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -127,7 +129,7 @@ func jwksURL(iss string) string { return strings.TrimSuffix(iss, "/") + "/.well-
 // japikeyCallback fetches the JWKS over HTTP and decodes it with the third-party
 // library, so japikey.Verify is exercised against the real served document.
 func (e *env) japikeyCallback(t *testing.T) japikey.JWKCallback {
-	return func(ctx context.Context, kid uuid.UUID) (*rsa.PublicKey, error) {
+	return func(ctx context.Context, kid uuid.UUID) (crypto.PublicKey, error) {
 		set, err := fetch(ctx, fmt.Sprintf("%s/%s/.well-known/jwks.json", e.baseURL, kid))
 		if err != nil {
 			return nil, japikeyerrors.NewKeyNotFoundError("jwks fetch failed")
@@ -136,9 +138,9 @@ func (e *env) japikeyCallback(t *testing.T) japikey.JWKCallback {
 		if !ok {
 			return nil, japikeyerrors.NewKeyNotFoundError("kid not in jwks")
 		}
-		pub, err := jwk.Export[*rsa.PublicKey](key)
+		pub, err := jwk.Export[*ecdsa.PublicKey](key)
 		if err != nil {
-			return nil, japikeyerrors.NewKeyNotFoundError("not an rsa key")
+			return nil, japikeyerrors.NewKeyNotFoundError("not an ec key")
 		}
 		return pub, nil
 	}
@@ -171,6 +173,43 @@ func TestMintedTokenVerifiesWithJapikey(t *testing.T) {
 	}
 	if res.Claims["sub"] != "user-123" {
 		t.Errorf("sub = %v", res.Claims["sub"])
+	}
+}
+
+// TestServedJWKCarriesAlgAndVersion checks the version-2 JWK as a third party
+// sees it: an EC P-256 key declaring alg ES256 and ver 2, and a token that
+// verifies against it without the client having to infer the algorithm.
+func TestServedJWKCarriesAlgAndVersion(t *testing.T) {
+	e := newEnv(t)
+	k := e.mint(t, nil)
+
+	iss := tokenIssuer(t, k.JWT)
+	resp, err := http.Get(jwksURL(iss))
+	if err != nil {
+		t.Fatalf("GET jwks: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	var doc struct {
+		Keys []map[string]any `json:"keys"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil || len(doc.Keys) != 1 {
+		t.Fatalf("bad JWKS document: %v", err)
+	}
+	key := doc.Keys[0]
+	if key["kty"] != "EC" || key["crv"] != "P-256" || key["alg"] != "ES256" || key["ver"] != float64(2) {
+		t.Errorf("unexpected served JWK: %v", key)
+	}
+	if _, ok := key["d"]; ok {
+		t.Error("served JWK exposes the private scalar")
+	}
+
+	set, err := fetch(context.Background(), jwksURL(iss))
+	if err != nil {
+		t.Fatalf("fetch: %v", err)
+	}
+	// No WithInferAlgorithmFromKey: alg comes from the JWK itself.
+	if _, err := jwt.Parse([]byte(k.JWT), jwt.WithKeySet(set), jwt.WithIssuer(iss), jwt.WithValidate(true)); err != nil {
+		t.Fatalf("third-party library rejected the token without alg inference: %v", err)
 	}
 }
 
@@ -251,7 +290,7 @@ func TestCustomClaimsSurviveRoundTrip(t *testing.T) {
 	if res.Claims["role"] != "admin" {
 		t.Errorf("custom claim lost: %v", res.Claims["role"])
 	}
-	if res.Claims["ver"] != "japikey-v1" {
+	if res.Claims["ver"] != "japikey-v2" {
 		t.Errorf("ver overridden: %v", res.Claims["ver"])
 	}
 }
@@ -301,7 +340,7 @@ func TestKeysAreIsolated(t *testing.T) {
 	}
 
 	// Serve b's key under a's kid (a compromised/misconfigured store).
-	cb := func(ctx context.Context, _ uuid.UUID) (*rsa.PublicKey, error) { return b.PublicKey, nil }
+	cb := func(ctx context.Context, _ uuid.UUID) (crypto.PublicKey, error) { return b.PublicKey, nil }
 	if _, err := japikey.Verify(context.Background(), a.JWT,
 		e.verifyConfig(e.baseURL), cb); err == nil {
 		t.Error("token for key A verified against key B's public key")

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/ecdsa"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -46,7 +47,7 @@ func main() {
 	fmt.Println()
 
 	// Example 2: Create JWKS directly from RSA public key
-	fmt.Println("Example 2: Creating JWKS directly from RSA public key")
+	fmt.Println("Example 2: Creating JWKS directly from the public key")
 	keyID := japikeyResult.KeyID
 	publicKey := japikeyResult.PublicKey
 
@@ -65,7 +66,11 @@ func main() {
 		log.Fatalf("Failed to get public key from JWKS: %v", err)
 	}
 
-	fmt.Printf("Retrieved public key modulus size: %d bits\n", retrievedPublicKey.N.BitLen())
+	retrievedEC, ok := retrievedPublicKey.(*ecdsa.PublicKey)
+	if !ok {
+		log.Fatalf("Expected an EC public key, got %T", retrievedPublicKey)
+	}
+	fmt.Printf("Retrieved public key curve: %s\n", retrievedEC.Curve.Params().Name)
 	fmt.Println()
 
 	// Example 3: Deserialize JWKS from JSON
@@ -90,12 +95,8 @@ func main() {
 		log.Fatalf("Failed to get public key from deserialized JWKS: %v", err)
 	}
 
-	if deserializedPublicKey.N.Cmp(publicKey.N) != 0 {
-		log.Fatal("Public key modulus mismatch after deserialization")
-	}
-
-	if deserializedPublicKey.E != publicKey.E {
-		log.Fatalf("Public key exponent mismatch: expected %d, got %d", publicKey.E, deserializedPublicKey.E)
+	if !publicKey.(*ecdsa.PublicKey).Equal(deserializedPublicKey) {
+		log.Fatal("Public key mismatch after deserialization")
 	}
 
 	fmt.Println("Successfully deserialized and verified JWKS!")

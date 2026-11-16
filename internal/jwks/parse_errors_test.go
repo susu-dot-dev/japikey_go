@@ -45,6 +45,9 @@ func TestValidatePublicKey_Nil(t *testing.T) {
 	if err := ValidatePublicKey(nil); err == nil {
 		t.Error("expected error for nil key")
 	}
+	if err := ValidatePublicKey((*rsa.PublicKey)(nil)); err == nil {
+		t.Error("expected error for typed nil RSA key")
+	}
 	if err := ValidatePublicKey(&rsa.PublicKey{E: 65537}); err == nil {
 		t.Error("expected error for nil modulus")
 	}

@@ -5,7 +5,7 @@ package japikey
 
 import (
 	"context"
-	"crypto/rsa"
+	"crypto"
 	"net/http"
 	"uuid"
 
@@ -48,7 +48,9 @@ type DatabaseTimeoutError = errors.DatabaseTimeoutError
 
 type JWKS = jwks.JWKS
 
-func NewJWKS(publicKey *rsa.PublicKey, kid uuid.UUID) (*JWKS, error) {
+// NewJWKS builds the JWKS for a public key: an *ecdsa.PublicKey on P-256 for
+// version 2 keys, or an *rsa.PublicKey for version 1 keys.
+func NewJWKS(publicKey crypto.PublicKey, kid uuid.UUID) (*JWKS, error) {
 	return jwks.NewJWKS(publicKey, kid)
 }
 

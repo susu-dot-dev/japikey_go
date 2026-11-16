@@ -2,7 +2,9 @@ package japikey
 
 import (
 	"context"
-	"crypto/rsa"
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"encoding/json"
 	"fmt"
 	"os/exec"
@@ -210,13 +212,16 @@ func TestNewJAPIKey_ReturnsValidJWK(t *testing.T) {
 		t.Error("Expected PublicKey to not be nil")
 	}
 
-	// Check that it's a valid RSA public key
-	if result.PublicKey.N == nil {
-		t.Error("Expected PublicKey to have a valid modulus")
+	// Check that it's a valid P-256 public key
+	pub, ok := result.PublicKey.(*ecdsa.PublicKey)
+	if !ok {
+		t.Fatalf("Expected an *ecdsa.PublicKey, got %T", result.PublicKey)
 	}
-
-	if result.PublicKey.E == 0 {
-		t.Error("Expected PublicKey to have a valid exponent")
+	if pub.Curve != elliptic.P256() {
+		t.Error("Expected PublicKey to be on P-256")
+	}
+	if _, err := pub.Bytes(); err != nil {
+		t.Errorf("Expected PublicKey to be a valid point: %v", err)
 	}
 }
 
@@ -271,7 +276,7 @@ func TestNewJAPIKey_WithCryptographicFailure_ReturnsGenerationError(t *testing.T
 	// This test will be more of a verification that the error type is correct
 	// when such failures occur. For now, we'll just verify the error type exists.
 
-	// We can't easily force a cryptographic failure in rsa.GenerateKey
+	// We can't easily force a cryptographic failure in ecdsa.GenerateKey
 	// So we'll test that the error type exists and implements the error interface
 	err := errors.NewInternalError("test error")
 
@@ -509,7 +514,7 @@ func TestJWTSignatureVerificationWithReturnedPublicKey(t *testing.T) {
 	// Parse the JWT with the public key to verify the signature
 	token, err := jwt.Parse(result.JWT, func(token *jwt.Token) (interface{}, error) {
 		// Verify the signing method is what we expect
-		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+		if _, ok := token.Method.(*jwt.SigningMethodECDSA); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 		return publicKey, nil
@@ -576,12 +581,10 @@ func TestPrivateKeyNeverAccessibleAfterCreation(t *testing.T) {
 
 	// Verify that the public key is valid and can be used for verification
 	// but that no private key information is exposed
-	if result.PublicKey.N == nil {
-		t.Error("Expected PublicKey to have a valid modulus")
-	}
-
-	if result.PublicKey.E == 0 {
-		t.Error("Expected PublicKey to have a valid exponent")
+	if pub, ok := result.PublicKey.(*ecdsa.PublicKey); !ok {
+		t.Error("Expected PublicKey to be an *ecdsa.PublicKey")
+	} else if _, err := pub.Bytes(); err != nil {
+		t.Errorf("Expected PublicKey to be a valid point: %v", err)
 	}
 
 	// The function implementation should ensure that the private key
@@ -628,7 +631,7 @@ func TestIntegrationFullWorkflow(t *testing.T) {
 
 	// Step 3: Verify the JWT signature using the returned public key
 	token, err := jwt.Parse(result.JWT, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+		if _, ok := token.Method.(*jwt.SigningMethodECDSA); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 		return result.PublicKey, nil
@@ -653,8 +656,8 @@ func TestIntegrationFullWorkflow(t *testing.T) {
 		if aud, exists := claims["aud"]; !exists || aud != config.Audience {
 			t.Errorf("Expected audience '%s', got '%v'", config.Audience, aud)
 		}
-		if ver, exists := claims["ver"]; !exists || ver != "japikey-v1" {
-			t.Errorf("Expected version 'japikey-v1', got '%v'", ver)
+		if ver, exists := claims["ver"]; !exists || ver != "japikey-v2" {
+			t.Errorf("Expected version 'japikey-v2', got '%v'", ver)
 		}
 		if custom, exists := claims["custom_claim"]; !exists || custom != "custom_value" {
 			t.Errorf("Expected custom claim 'custom_value', got '%v'", custom)
@@ -736,8 +739,8 @@ func TestUserClaimsCannotOverrideConfigClaims(t *testing.T) {
 		}
 
 		// Verify that the version identifier was not overridden
-		if ver, exists := claims["ver"]; !exists || ver != "japikey-v1" {
-			t.Errorf("Expected version to be 'japikey-v1', but got '%v'", ver)
+		if ver, exists := claims["ver"]; !exists || ver != "japikey-v2" {
+			t.Errorf("Expected version to be 'japikey-v2', but got '%v'", ver)
 		}
 
 		// Verify that the custom claim was preserved
@@ -787,12 +790,13 @@ func TestJAPIKey_ToJWKS_WithValidInputs_ReturnsValidJWKS(t *testing.T) {
 		t.Fatalf("Failed to retrieve public key from JWKS: %v", err)
 	}
 
-	if retrievedPublicKey.N.Cmp(japikey.PublicKey.N) != 0 {
-		t.Error("Expected modulus to match original public key")
+	got, ok := retrievedPublicKey.(*ecdsa.PublicKey)
+	if !ok {
+		t.Fatalf("Expected an *ecdsa.PublicKey, got %T", retrievedPublicKey)
 	}
-
-	if retrievedPublicKey.E != japikey.PublicKey.E {
-		t.Errorf("Expected exponent to match original public key, got %d, expected %d", retrievedPublicKey.E, japikey.PublicKey.E)
+	want := japikey.PublicKey.(*ecdsa.PublicKey)
+	if !got.Equal(want) {
+		t.Error("Expected public key to match the original")
 	}
 }
 
@@ -939,7 +943,7 @@ func TestJAPIKey_ToJWKS_ValidateAgainstJWXTool(t *testing.T) {
 }
 
 // The returned public key must not alias the private key, otherwise the whole
-// rsa.PrivateKey stays reachable for as long as the caller holds the public key.
+// ecdsa.PrivateKey stays reachable for as long as the caller holds the public key.
 func TestNewJAPIKeyPublicKeyDoesNotRetainPrivateKey(t *testing.T) {
 	result, err := NewJAPIKey(Config{
 		Subject:   "user",
@@ -951,14 +955,18 @@ func TestNewJAPIKeyPublicKeyDoesNotRetainPrivateKey(t *testing.T) {
 		t.Fatalf("Failed to create JAPIKey: %v", err)
 	}
 
-	if result.PublicKey == nil || result.PublicKey.N == nil || result.PublicKey.E == 0 {
-		t.Fatal("Expected a populated public key")
+	pub, ok := result.PublicKey.(*ecdsa.PublicKey)
+	if !ok {
+		t.Fatal("Expected an *ecdsa.PublicKey")
+	}
+	if _, err := pub.Bytes(); err != nil {
+		t.Fatalf("Expected a populated public key: %v", err)
 	}
 
 	// The key must still verify the signature it was minted with.
 	parsed, err := jwt.Parse(result.JWT, func(*jwt.Token) (interface{}, error) {
 		return result.PublicKey, nil
-	}, jwt.WithValidMethods([]string{"RS256"}))
+	}, jwt.WithValidMethods([]string{"ES256"}))
 	if err != nil || !parsed.Valid {
 		t.Fatalf("Public key failed to verify minted token: %v", err)
 	}
@@ -1097,7 +1105,7 @@ func TestMintedKeyPassesVerify(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewJAPIKey: %v", err)
 			}
-			keyFunc := func(_ context.Context, id uuid.UUID) (*rsa.PublicKey, error) {
+			keyFunc := func(_ context.Context, id uuid.UUID) (crypto.PublicKey, error) {
 				if id != result.KeyID {
 					return nil, errors.NewKeyNotFoundError("not found")
 				}
